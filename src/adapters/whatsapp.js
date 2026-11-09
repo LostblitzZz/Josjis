@@ -135,37 +135,9 @@ class WhatsAppAdapter extends EventEmitter {
     this.messages = new Map(); // jid -> [ array of messages ]
     this.saveTimer = null;
 
-    this.loadContactsCache();
+    // Load stored messages FIRST to establish true historical timestamps
     this.loadMessagesStore();
-  }
-
-  loadContactsCache() {
-    try {
-      if (fs.existsSync(this.cacheFile)) {
-        const raw = fs.readFileSync(this.cacheFile, 'utf8');
-        const entries = JSON.parse(raw);
-        for (const [jid, data] of entries) {
-          this.contacts.set(jid, {
-            ...data,
-            isGroup: jid.endsWith('@g.us')
-          });
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  saveContactsCache() {
-    try {
-      if (!fs.existsSync(this.authDir)) {
-        fs.mkdirSync(this.authDir, { recursive: true });
-      }
-      const data = JSON.stringify(Array.from(this.contacts.entries()), null, 2);
-      fs.writeFileSync(this.cacheFile, data, 'utf8');
-    } catch {
-      // ignore
-    }
+    this.loadContactsCache();
   }
 
   loadMessagesStore() {
@@ -190,6 +162,48 @@ class WhatsAppAdapter extends EventEmitter {
           }
         }
       }
+    } catch {
+      // ignore
+    }
+  }
+
+  loadContactsCache() {
+    try {
+      if (fs.existsSync(this.cacheFile)) {
+        const raw = fs.readFileSync(this.cacheFile, 'utf8');
+        const entries = JSON.parse(raw);
+        for (const [jid, data] of entries) {
+          const isGroup = jid.endsWith('@g.us');
+          const storedMsgs = this.messages.get(jid) || [];
+
+          // Cleanse poisoned fake timestamps from earlier bugs:
+          // Groups with no messages get timestamp = 0 so they don't bury personal chats!
+          let realTimestamp = 0;
+          if (storedMsgs.length > 0) {
+            realTimestamp = storedMsgs[storedMsgs.length - 1].timestamp || 0;
+          } else if (!isGroup && data.timestamp) {
+            realTimestamp = data.timestamp;
+          }
+
+          this.contacts.set(jid, {
+            ...data,
+            timestamp: realTimestamp,
+            isGroup
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  saveContactsCache() {
+    try {
+      if (!fs.existsSync(this.authDir)) {
+        fs.mkdirSync(this.authDir, { recursive: true });
+      }
+      const data = JSON.stringify(Array.from(this.contacts.entries()), null, 2);
+      fs.writeFileSync(this.cacheFile, data, 'utf8');
     } catch {
       // ignore
     }
@@ -287,7 +301,21 @@ class WhatsAppAdapter extends EventEmitter {
           this.emit('status', { status: 'connected' });
           this.emit('contacts_updated', this.getRecentChats());
 
-          // Populate group metadata, but DO NOT overwrite timestamp with Date.now()!
+          // 1. Force WhatsApp server to push all app state patches (recent chats & contacts)
+          setTimeout(async () => {
+            try {
+              if (this.sock && this.sock.resyncAppState) {
+                await this.sock.resyncAppState(
+                  ['critical_block', 'critical_unblock_low', 'regular_high', 'regular_low', 'regular'],
+                  false
+                );
+              }
+            } catch {
+              // ignore
+            }
+          }, 500);
+
+          // 2. Fetch group metadata (KEEP timestamp = 0 if no message history!)
           setTimeout(async () => {
             try {
               if (this.sock && this.sock.groupFetchAllParticipating) {
@@ -295,11 +323,16 @@ class WhatsAppAdapter extends EventEmitter {
                 if (groups) {
                   for (const [id, meta] of Object.entries(groups)) {
                     const existing = this.contacts.get(id) || {};
+                    const storedMsgs = this.messages.get(id) || [];
+                    const ts = storedMsgs.length > 0
+                      ? (storedMsgs[storedMsgs.length - 1].timestamp || 0)
+                      : (existing.timestamp || 0);
+
                     this.contacts.set(id, {
                       ...existing,
                       jid: id,
                       name: meta.subject || existing.name || `Grup (${id.slice(0, 8)})`,
-                      timestamp: existing.timestamp || 0, // KEEP 0 if no message, never use Date.now()!
+                      timestamp: ts,
                       isGroup: true
                     });
                   }
@@ -310,7 +343,7 @@ class WhatsAppAdapter extends EventEmitter {
             } catch {
               // ignore
             }
-          }, 1000);
+          }, 1500);
         }
       });
 
@@ -516,10 +549,21 @@ class WhatsAppAdapter extends EventEmitter {
   }
 
   getRecentChats() {
-    // Strictly sort by timestamp descending (newest chat activity at the very top)
-    return Array.from(this.contacts.values())
-      .filter((c) => c.timestamp && c.timestamp > 0)
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // 1. Active chats with messages (timestamp > 0) strictly descending
+    // 2. Personal contacts (isGroup === false) alphabetical
+    // 3. Inactive groups at the very bottom
+    const list = Array.from(this.contacts.values());
+    list.sort((a, b) => {
+      const aTime = a.timestamp || 0;
+      const bTime = b.timestamp || 0;
+      if (aTime > 0 && bTime > 0) return bTime - aTime;
+      if (aTime > 0) return -1;
+      if (bTime > 0) return 1;
+      if (!a.isGroup && b.isGroup) return -1;
+      if (a.isGroup && !b.isGroup) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    return list;
   }
 }
 

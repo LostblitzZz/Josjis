@@ -43,4 +43,6 @@ Double-click **`start.bat`**.
 | **`Esc`** atau **`F3`** | **Panic / Ghost Mode**. Seketika layar tertutup live fake compiler stream (`cargo build`). Tekan tombol apa saja untuk kembali |
 | **`/c`** (di input pesan) | Ganti mode antara **Camouflage (disamarkan jadi log server)** dan **Format Chat biasa** |
 | **`/to <nomor> <pesan>`** | Langsung kirim pesan ke nomor baru mana saja |
+| **`/cari <nama>`** | Cari / filter kontak di panel kiri (contoh: `/cari budi`) |
+| **`/all`** | Reset filter pencarian untuk menampilkan semua kontak lagi |
 | **`Ctrl + C`** atau **`/q`** | Keluar dari aplikasi |

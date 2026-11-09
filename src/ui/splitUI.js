@@ -227,6 +227,22 @@ function createSplitUI(hub) {
         return;
       }
 
+      if (text.startsWith('/cari ') || text.startsWith('/find ')) {
+        const query = text.replace(/^(\/cari|\/find)\s+/, '').toLowerCase().trim();
+        const matches = hub.channels.filter((c) => c.displayName.toLowerCase().includes(query));
+        updateContactsList(matches);
+        chatBox.log(`\x1b[33m[Filter]\x1b[0m Menampilkan ${matches.length} kontak cocok untuk "${query}". Ketik /all untuk reset.`);
+        if (!isPanicMode) startInputLoop();
+        return;
+      }
+
+      if (text === '/all' || text === '/reset') {
+        updateContactsList(hub.channels);
+        chatBox.log(`\x1b[32m[Filter]\x1b[0m Menampilkan semua kontak.`);
+        if (!isPanicMode) startInputLoop();
+        return;
+      }
+
       if (text === '/q' || text === ':q') {
         process.exit(0);
       }
