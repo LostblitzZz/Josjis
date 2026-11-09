@@ -1,6 +1,6 @@
 # Josjis
 
-Terminal-based stealth multi-chat client (WhatsApp, Discord, TikTok DM) disguised as a backend server syslog daemon.
+Terminal-based stealth multi-chat client (WhatsApp, Discord, TikTok DM) disguised as a backend server systemd/journalctl daemon.
 
 ---
 
@@ -8,51 +8,42 @@ Terminal-based stealth multi-chat client (WhatsApp, Discord, TikTok DM) disguise
 
 ### 1. Prasyarat
 * Install **Node.js** (v18 atau v20+) dari [nodejs.org](https://nodejs.org/).
-* Clone atau download repo ini ke komputer Windows kamu.
+* Clone repo ini:
+  ```bat
+  git clone https://github.com/LostblitzZz/Josjis.git
+  cd Josjis
+  npm install
+  ```
 
-### 2. Setup Awal (Terminal / PowerShell / CMD)
-Buka folder `Josjis` di terminal:
-```bat
-npm install
-```
-
-### 3. Tautkan WhatsApp (Cukup 1x)
+### 2. Tautkan WhatsApp (Cukup Sekali)
 Double-click file **`auth.bat`** (atau jalankan `npm run auth` di terminal).
-Scan QR code yang muncul di layar dengan WhatsApp HP (`Perangkat Tertaut` / `Linked Devices`).
+Scan QR code yang muncul di layar dengan WhatsApp HP (`Perangkat Tertaut` / `Linked Devices`). Tunggu sampai muncul notifikasi sukses, lalu jendela akan tertutup otomatis.
 
-### 4. Jalankan Mode Stealth
+### 3. Jalankan Mode Stealth
 Double-click file **`start.bat`** (atau jalankan `npm start` di terminal).
-Layar terminal otomatis menyamar sebagai `syslog-daemon`.
+Layar terminal otomatis menyamar sebagai `journalctl -u ingress-telemetry.service -f`.
 
 ---
 
-## 🐧 Panduan Menjalankan di Linux
+## 💬 Cara Pakai Chat & Perintah Lengkap
 
-```bash
-cd Josjis
-npm install
-npm run auth    # scan QR sekali
-npm start       # jalankan stealth client
-```
+Di layar prompt `rpc-exec > `, kamu bisa langsung gunakan perintah berikut:
 
----
-
-## ⌨️ Hotkeys & Stealth Controls
-
-| Tombol / Perintah | Aksi |
-| :--- | :--- |
-| **`Esc`** / **`F3`** / **`Ctrl + P`** | **Tombol Darurat (Panic)**. Layar langsung berganti jadi live fake build stream (`cargo build`/`webpack`). Tekan tombol apa saja (`Esc`/`Space`/`Enter`) untuk kembali. Bekerja meski sedang mengetik pesan! |
-| **`:p`** (di input) | Alternatif memicu layar Panic lewat perintah teks. |
-| **`F2`** atau **`:m`** | Ganti mode format antara **Ultra Stealth Syslog** (`Nov 09 14:52:10 srv-01 gateway[8412]: [thread-wa/Budi] payload_data: ...`) dan **Clean Chat**. |
-| **`Tab`** | Pindah fokus antara daftar sockets/threads (kiri) dan prompt input (bawah). |
-| **`Enter`** | Pilih target socket (di panel kiri) / Kirim payload (di kotak input). |
-| **`:clear`** | Bersihkan layar log stream. |
-| **`Ctrl + C`** atau **`:q`** | Keluar dari aplikasi. |
+| Perintah | Deskripsi | Contoh |
+| :--- | :--- | :--- |
+| **Ketik teks biasa + Enter** | Kirim pesan ke target yang sedang aktif | `Halo bro, lagi di mana?` |
+| **`:to <nomor> <pesan>`** | Kirim pesan langsung ke nomor HP siapapun | `:to 08123456789 Halo bro` |
+| **`:ls`** atau **`:list`** | Tampilkan daftar semua chat yang tersinkron | `:ls` |
+| **`:use <angka/nama>`** | Ganti target chat aktif | `:use 1` atau `:use Budi` |
+| **`:p`** atau tombol **`Esc`** | **Panic Button**. Layar langsung bersih dan memunculkan fake compiler log (`cargo build`). Tekan Enter untuk kembali. | `:p` |
+| **`:m`** | Ganti mode format log backend vs format teks chat | `:m` |
+| **`:clear`** | Bersihkan layar log | `:clear` |
+| **`:help`** | Tampilkan panduan perintah | `:help` |
+| **`:q`** | Keluar dari aplikasi | `:q` |
 
 ---
 
-## ⚙️ Konfigurasi Tambahan (Opsional)
-
-Copy `.env.example` menjadi `.env`:
-* **Discord Bot**: Masukkan token bot di `DISCORD_TOKEN=...`.
+## ⚙️ Tambah Discord / TikTok (Opsional)
+Salin `.env.example` menjadi `.env`:
+* **Discord Bot**: Masukkan bot token di `DISCORD_TOKEN=...`.
 * **TikTok DM**: Kerangka adapter tersedia di `src/adapters/tiktok.js`.

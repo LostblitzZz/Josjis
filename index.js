@@ -1,7 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const ChatHub = require('./src/hub');
-const { createUI } = require('./src/ui/screen');
+const { createStreamUI } = require('./src/ui/streamUI');
 
 async function main() {
   const hub = new ChatHub({
@@ -10,15 +10,14 @@ async function main() {
     tiktokCookiePath: path.join(__dirname, 'auth/tiktok_cookies.json')
   });
 
-  const { appendLog } = createUI(hub);
+  const { printLine } = createStreamUI(hub);
 
-  appendLog('\x1b[90m[systemd]\x1b[0m Starting Ingress Telemetry Worker Daemon...');
-  appendLog('\x1b[90m[systemd]\x1b[0m Hotkeys: [Esc] or :p = Panic | [F2] or :m = Mode | [Tab] = Switch Pane');
+  printLine('\x1b[90m[systemd]\x1b[0m Starting Ingress Telemetry Worker Daemon...');
 
   try {
     await hub.init();
   } catch (err) {
-    appendLog(`\x1b[31m[CRITICAL]\x1b[0m Initialization error: ${err.message}`);
+    printLine(`\x1b[31m[CRITICAL]\x1b[0m Initialization error: ${err.message}`);
   }
 }
 

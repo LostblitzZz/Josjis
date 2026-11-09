@@ -13,7 +13,7 @@ class ChatHub extends EventEmitter {
 
     this.channels = []; // unified list of { id, displayName, platform, rawId }
     this.activeChannel = null;
-    this.messageHistory = []; // { id, platform, sender, text, timestamp, isMe, channelId }
+    this.messageHistory = [];
   }
 
   async init() {
@@ -24,18 +24,15 @@ class ChatHub extends EventEmitter {
   }
 
   setupListeners() {
-    // WhatsApp events
     this.wa.on('status', (st) => this.emit('platform_status', { platform: 'whatsapp', ...st }));
     this.wa.on('qr', (qr) => this.emit('wa_qr', qr));
     this.wa.on('message', (msg) => this.handleIncomingMessage(msg));
     this.wa.on('contacts_updated', () => this.refreshChannels());
 
-    // Discord events
     this.discord.on('status', (st) => this.emit('platform_status', { platform: 'discord', ...st }));
     this.discord.on('message', (msg) => this.handleIncomingMessage(msg));
     this.discord.on('channels_updated', () => this.refreshChannels());
 
-    // TikTok events
     this.tiktok.on('status', (st) => this.emit('platform_status', { platform: 'tiktok', ...st }));
     this.tiktok.on('message', (msg) => this.handleIncomingMessage(msg));
   }
@@ -47,13 +44,22 @@ class ChatHub extends EventEmitter {
     }
 
     this.refreshChannels();
+
+    // If no active channel, or if incoming message is from a contact,
+    // we can keep active channel synced or notify
+    const targetChannel = this.channels.find((c) => c.rawId === msg.channelId);
+    if (!this.activeChannel && targetChannel) {
+      this.activeChannel = targetChannel;
+      this.emit('active_channel_changed', targetChannel);
+    }
+
     this.emit('message', msg);
   }
 
   refreshChannels() {
     const list = [];
 
-    // Add WhatsApp chats
+    // WhatsApp chats
     const waChats = this.wa.getRecentChats();
     for (const chat of waChats) {
       list.push({
@@ -65,7 +71,7 @@ class ChatHub extends EventEmitter {
       });
     }
 
-    // Add Discord channels
+    // Discord channels
     const dcChannels = this.discord.getChannels();
     for (const ch of dcChannels) {
       list.push({
@@ -77,26 +83,82 @@ class ChatHub extends EventEmitter {
       });
     }
 
-    // Sort: most recent chats first
     this.channels = list;
+
     if (!this.activeChannel && this.channels.length > 0) {
       this.activeChannel = this.channels[0];
+      this.emit('active_channel_changed', this.activeChannel);
     }
 
     this.emit('channels_updated', this.channels);
   }
 
   setActiveChannel(channelId) {
-    const found = this.channels.find((c) => c.id === channelId);
+    const found = this.channels.find((c) => c.id === channelId || c.rawId === channelId);
     if (found) {
       this.activeChannel = found;
       this.emit('active_channel_changed', found);
+      return found;
     }
+    return null;
+  }
+
+  setActiveByIndex(index) {
+    const idx = parseInt(index, 10) - 1;
+    if (this.channels[idx]) {
+      this.activeChannel = this.channels[idx];
+      this.emit('active_channel_changed', this.activeChannel);
+      return this.activeChannel;
+    }
+    return null;
+  }
+
+  setActiveByName(query) {
+    const q = query.toLowerCase().trim();
+    const found = this.channels.find((c) =>
+      c.displayName.toLowerCase().includes(q) ||
+      c.rawId.toLowerCase().includes(q)
+    );
+    if (found) {
+      this.activeChannel = found;
+      this.emit('active_channel_changed', found);
+      return found;
+    }
+    return null;
+  }
+
+  async sendToNumber(phoneNumber, text) {
+    await this.wa.sendMessage(phoneNumber, text);
+    const jid = WhatsAppAdapter.formatToJid ? WhatsAppAdapter.formatToJid(phoneNumber) : phoneNumber;
+    const target = this.channels.find((c) => c.rawId === jid) || {
+      id: `wa:${jid}`,
+      platform: 'whatsapp',
+      rawId: jid,
+      displayName: `svc-wa/${phoneNumber}`
+    };
+    this.activeChannel = target;
+    this.emit('active_channel_changed', target);
+
+    const echoMsg = {
+      source: 'whatsapp',
+      channelId: jid,
+      channelName: target.displayName,
+      sender: 'You',
+      isMe: true,
+      text,
+      timestamp: Date.now()
+    };
+    this.messageHistory.push(echoMsg);
+    this.emit('message', echoMsg);
   }
 
   async sendCurrent(text) {
     if (!this.activeChannel) {
-      throw new Error('No active channel selected. Select a channel from the left panel first.');
+      if (this.channels.length > 0) {
+        this.activeChannel = this.channels[0];
+      } else {
+        throw new Error('No target selected. Type ":to <nomor_hp> <pesan>" or ":use <nomor>" to start a chat.');
+      }
     }
 
     const { platform, rawId } = this.activeChannel;
@@ -109,7 +171,6 @@ class ChatHub extends EventEmitter {
       await this.tiktok.sendMessage(rawId, text);
     }
 
-    // Local echo
     const echoMsg = {
       source: platform,
       channelId: rawId,
@@ -122,11 +183,6 @@ class ChatHub extends EventEmitter {
 
     this.messageHistory.push(echoMsg);
     this.emit('message', echoMsg);
-  }
-
-  getMessagesForChannel(channelId) {
-    if (!channelId) return this.messageHistory;
-    return this.messageHistory.filter((m) => m.channelId === channelId);
   }
 }
 
