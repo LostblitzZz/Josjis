@@ -1,37 +1,46 @@
-# Josjis - Terminal Ghost Client (WhatsApp Realtime)
+# Josjis - Terminal WhatsApp Split Client
 
-Klien terminal ringan & realtime untuk WhatsApp (dan Discord) khusus di kantor. Bisa dikecilkan di sudut layar monitor, dan punya fitur **Ghost Mode & Camouflage** agar tidak ketahuan sedang chat.
+Klien terminal WhatsApp yang tampilannya persis seperti **WhatsApp Web** (kontak di sebelah kiri, riwayat obrolan lengkap di sebelah kanan), namun berjalan **100% murni di dalam terminal** dengan fitur penyamaran (*stealth / ghost mode*).
 
 ---
 
 ## ⚡ Cara Menjalankan di Windows
 
-### 1. Update ke Versi Ghost Client
-Di folder `Josjis`:
+### 1. Update ke Versi Terbaru
+Buka terminal di folder `Josjis`:
 ```bat
 git checkout . && git pull origin main
 ```
 
 ### 2. Tautkan WhatsApp (Cukup 1x)
-Double-click **`auth.bat`** lalu scan QR dengan WhatsApp HP (`Perangkat Tertaut`). Begitu sukses, jendela akan tertutup sendiri.
+Double-click **`auth.bat`** lalu scan QR dengan WhatsApp HP (`Perangkat Tertaut`).
 
-### 3. Jalankan Terminal Ghost
+### 3. Jalankan Terminal WhatsApp
 Double-click **`start.bat`**.
-* Tidak perlu buka browser sama sekali! Semua berjalan 100% di jendela konsol kecil ini.
-* Kamu bisa ubah ukuran jendela terminal jadi kecil dan geser ke pojok monitor.
 
 ---
 
-## ⌨️ Navigasi & Shortcut Praktis
+## 📱 Tampilan Split Terminal (Persis WhatsApp)
 
-| Perintah | Fungsi | Contoh |
-| :--- | :--- | :--- |
-| **Ketik teks + Enter** | Kirim pesan ke chat yang sedang aktif | `Halo bro, lagi di mana?` |
-| **`/1`, `/2`, `/3`, ...** | Langsung ganti ke chat nomor 1, 2, dst | `/1` |
-| **`/r`** | Balas langsung ke orang terakhir yang mengirim pesan | `/r` |
-| **`/ls`** | Tampilkan daftar 10 chat terbaru dari WhatsApp | `/ls` |
-| **`/to <nomor> <pesan>`** | Kirim pesan ke nomor baru mana saja | `/to 08123456789 Halo bro` |
-| **`Esc`** atau **`/g`** | **Ghost Mode**. Layar seketika jadi ping server dummy. Tekan Enter / Esc lagi untuk kembali. | `/g` |
-| **`/c`** | Ganti mode antara **Camouflage (tampilan log server)** dan **Normal Chat** | `/c` |
-| **`/clear`** | Bersihkan layar | `/clear` |
-| **`/q`** | Keluar | `/q` |
+* **Panel Kiri (Daftar Kontak & Grup):**  
+  Menampilkan semua kontak dan grup yang disinkronkan langsung dari WhatsApp secara realtime.  
+  Gunakan **Panah Atas / Bawah** untuk memilih chat, lalu tekan **Enter** untuk membuka.
+* **Panel Kanan (Riwayat Chat Lengkap):**  
+  Membuka dan menampilkan semua pesan obrolan sebelumnya dengan kontak tersebut secara runtut waktu.
+* **Kotak Bawah (Input Pesan):**  
+  Ketik pesanmu lalu tekan **Enter** untuk langsung mengirim.
+
+---
+
+## ⌨️ Kontrol & Hotkey
+
+| Tombol / Perintah | Fungsi |
+| :--- | :--- |
+| **`Tab`** | Pindah fokus antara **Daftar Kontak (kiri)** dan **Kotak Ketik Pesan (bawah)** |
+| **`Panah Atas / Bawah`** | Pilih kontak di panel kiri |
+| **`Enter`** (di panel kiri) | Buka obrolan kontak tersebut |
+| **`Enter`** (di kotak pesan) | Kirim pesan ke kontak yang sedang aktif |
+| **`Esc`** atau **`F3`** | **Panic / Ghost Mode**. Seketika layar tertutup live fake compiler stream (`cargo build`). Tekan tombol apa saja untuk kembali |
+| **`/c`** (di input pesan) | Ganti mode antara **Camouflage (disamarkan jadi log server)** dan **Format Chat biasa** |
+| **`/to <nomor> <pesan>`** | Langsung kirim pesan ke nomor baru mana saja |
+| **`Ctrl + C`** atau **`/q`** | Keluar dari aplikasi |

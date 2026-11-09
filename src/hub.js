@@ -184,6 +184,15 @@ class ChatHub extends EventEmitter {
     this.messageHistory.push(echoMsg);
     this.emit('message', echoMsg);
   }
+
+  getMessagesForChannel(channelId) {
+    if (!channelId) return this.messageHistory;
+    const waList = this.wa && this.wa.getMessagesForJid ? this.wa.getMessagesForJid(channelId) : [];
+    if (waList && waList.length > 0) {
+      return waList;
+    }
+    return this.messageHistory.filter((m) => m.channelId === channelId);
+  }
 }
 
 module.exports = ChatHub;

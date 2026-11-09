@@ -1,7 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const ChatHub = require('./src/hub');
-const { startTerminalClient } = require('./src/terminalClient');
+const { createSplitUI } = require('./src/ui/splitUI');
 
 async function main() {
   const hub = new ChatHub({
@@ -10,12 +10,12 @@ async function main() {
     tiktokCookiePath: path.join(__dirname, 'auth/tiktok_cookies.json')
   });
 
-  const { printLine } = startTerminalClient(hub);
+  createSplitUI(hub);
 
   try {
     await hub.init();
   } catch (err) {
-    printLine(`\x1b[31m[CRITICAL]\x1b[0m Init error: ${err.message}`);
+    console.error('Initialization error:', err.message);
   }
 }
 
