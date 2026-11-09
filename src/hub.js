@@ -60,7 +60,7 @@ class ChatHub extends EventEmitter {
         id: `wa:${chat.jid}`,
         platform: 'whatsapp',
         rawId: chat.jid,
-        displayName: `[WA] ${chat.name || chat.jid.split('@')[0]}`,
+        displayName: `svc-wa/${chat.name || chat.jid.split('@')[0]}`,
         timestamp: chat.timestamp || 0
       });
     }
@@ -72,7 +72,7 @@ class ChatHub extends EventEmitter {
         id: `dc:${ch.id}`,
         platform: 'discord',
         rawId: ch.id,
-        displayName: `[DC] ${ch.name}`,
+        displayName: `svc-dc/${ch.name}`,
         timestamp: 0
       });
     }

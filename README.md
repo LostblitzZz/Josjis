@@ -39,13 +39,15 @@ npm start       # jalankan stealth client
 
 ## ⌨️ Hotkeys & Stealth Controls
 
-| Tombol | Aksi |
+| Tombol / Perintah | Aksi |
 | :--- | :--- |
-| **`F3`** / **`Panic`** | **Tombol Darurat**. Layar langsung berganti jadi live fake build stream (`cargo build`/`webpack`). Tekan `Esc` atau `F3` lagi untuk kembali ke chat. |
-| **`F2`** | Ganti mode format antara **Stealth Syslog** (`[INFO] <wa-worker::Budi> ...`) dan **Clean Chat** biasa. |
-| **`Tab`** | Pindah fokus antara panel daftar chat (kiri) dan kolom input pesan (bawah). |
-| **`Enter`** | Pilih chat aktif (di panel kiri) / Kirim pesan (di kotak input). |
-| **`Ctrl + C`** | Keluar dari aplikasi. |
+| **`Esc`** / **`F3`** / **`Ctrl + P`** | **Tombol Darurat (Panic)**. Layar langsung berganti jadi live fake build stream (`cargo build`/`webpack`). Tekan tombol apa saja (`Esc`/`Space`/`Enter`) untuk kembali. Bekerja meski sedang mengetik pesan! |
+| **`:p`** (di input) | Alternatif memicu layar Panic lewat perintah teks. |
+| **`F2`** atau **`:m`** | Ganti mode format antara **Ultra Stealth Syslog** (`Nov 09 14:52:10 srv-01 gateway[8412]: [thread-wa/Budi] payload_data: ...`) dan **Clean Chat**. |
+| **`Tab`** | Pindah fokus antara daftar sockets/threads (kiri) dan prompt input (bawah). |
+| **`Enter`** | Pilih target socket (di panel kiri) / Kirim payload (di kotak input). |
+| **`:clear`** | Bersihkan layar log stream. |
+| **`Ctrl + C`** atau **`:q`** | Keluar dari aplikasi. |
 
 ---
 

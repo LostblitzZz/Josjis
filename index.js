@@ -12,8 +12,8 @@ async function main() {
 
   const { appendLog } = createUI(hub);
 
-  appendLog('\x1b[90m[SYSTEM]\x1b[0m Initializing Unified Communication Daemon...');
-  appendLog('\x1b[90m[SYSTEM]\x1b[0m Hotkeys: [Tab] Switch Pane | [F2] Toggle Syslog/Chat | [F3] Panic Screen | [Ctrl+C] Exit');
+  appendLog('\x1b[90m[systemd]\x1b[0m Starting Ingress Telemetry Worker Daemon...');
+  appendLog('\x1b[90m[systemd]\x1b[0m Hotkeys: [Esc] or :p = Panic | [F2] or :m = Mode | [Tab] = Switch Pane');
 
   try {
     await hub.init();

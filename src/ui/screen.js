@@ -4,16 +4,23 @@ const { getRandomLog } = require('./panicLogs');
 function createUI(hub) {
   const screen = blessed.screen({
     smartCSR: true,
-    title: 'syslogd - /var/log/cluster/service.log',
+    title: 'journalctl -u ingress-telemetry.service -f',
     dockBorders: true,
-    fullUnicode: true
+    fullUnicode: true,
+    cursor: {
+      artificial: true,
+      shape: 'line',
+      blink: true,
+      color: 'white'
+    }
   });
 
   let isStealthMode = true;
   let isPanicMode = false;
   let panicInterval = null;
+  let isReadingInput = false;
 
-  // Header Bar
+  // Subtle Header Bar (disguised as Kubernetes / systemd telemetry)
   const header = blessed.box({
     parent: screen,
     top: 0,
@@ -25,38 +32,38 @@ function createUI(hub) {
       border: { fg: 'gray' },
       fg: 'white'
     },
-    content: ' [SYS-MONITOR v3.1] Node: prod-node-02 | Mode: STEALTH [F2] | [F3] Panic Build | [Tab] Switch Pane | [Ctrl+C] Exit'
+    content: ' [k8s-pod: ingress-gw-89f] [cluster: prod-sea-01] [CPU: 1.2% | MEM: 198MB] [UPTIME: 18d 04h]\n Hotkeys: [Esc] or :p = Panic | [F2] or :m = Mode | [Tab] = Switch Pane | [Ctrl+C] = Exit'
   });
 
-  // Left Column: Channels
+  // Left Column: Channels / Sockets
   const channelList = blessed.list({
     parent: screen,
     top: 3,
     left: 0,
-    width: '32%',
+    width: '30%',
     height: '100%-3',
     border: { type: 'line' },
-    label: ' Active Services / Channels ',
+    label: ' Ingress Threads / Pods ',
     keys: true,
     vi: true,
     mouse: true,
     style: {
-      border: { fg: 'blue' },
-      selected: { bg: 'blue', fg: 'white', bold: true },
+      border: { fg: 'gray' },
+      selected: { bg: 'black', fg: 'yellow', bold: true },
       item: { fg: 'white' }
     },
-    items: ['[Waiting for connections...]']
+    items: ['[Scanning sockets...]']
   });
 
-  // Right Top: Messages / Event Stream
+  // Right Top: Logs / Event Stream
   const logBox = blessed.log({
     parent: screen,
     top: 3,
-    left: '32%',
-    width: '68%',
+    left: '30%',
+    width: '70%',
     height: '100%-6',
     border: { type: 'line' },
-    label: ' Stream Inspector (/dev/pts/1) ',
+    label: ' journalctl -u ingress-worker.service -f (/var/log/syslog) ',
     scrollable: true,
     alwaysScroll: true,
     scrollbar: {
@@ -64,28 +71,27 @@ function createUI(hub) {
       style: { fg: 'gray' }
     },
     style: {
-      border: { fg: 'green' },
+      border: { fg: 'gray' },
       fg: 'white'
     }
   });
 
-  // Right Bottom: Input Command Box
+  // Right Bottom: Input Command Prompt
   const inputBox = blessed.textbox({
     parent: screen,
     bottom: 0,
-    left: '32%',
-    width: '68%',
+    left: '30%',
+    width: '70%',
     height: 3,
     border: { type: 'line' },
-    label: ' Command / Message Input (Press Enter to Dispatch) ',
-    inputOnFocus: true,
+    label: ' rpc-exec [no target selected] ',
     style: {
-      border: { fg: 'cyan' },
+      border: { fg: 'gray' },
       fg: 'white'
     }
   });
 
-  // Panic Overlay Box (Hidden by default)
+  // Panic Overlay Box (Fullscreen live compile stream)
   const panicBox = blessed.log({
     parent: screen,
     top: 0,
@@ -94,7 +100,7 @@ function createUI(hub) {
     height: '100%',
     hidden: true,
     border: { type: 'line' },
-    label: ' cargo build --release --target x86_64-unknown-linux-gnu ',
+    label: ' /usr/bin/cargo build --release --target x86_64-unknown-linux-gnu ',
     style: {
       border: { fg: 'green' },
       fg: 'green'
@@ -102,14 +108,22 @@ function createUI(hub) {
   });
 
   function formatMessage(msg) {
-    const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString();
+    const d = new Date(msg.timestamp || Date.now());
+    const month = d.toLocaleString('en-US', { month: 'short' });
+    const day = String(d.getDate()).padStart(2, '0');
+    const time = d.toTimeString().split(' ')[0];
+    const timestampStr = `${month} ${day} ${time}`;
+
     const sender = msg.isMe ? 'You' : msg.sender;
-    const tag = msg.source === 'whatsapp' ? 'wa-worker' : (msg.source === 'discord' ? 'dc-gateway' : 'tk-im');
+    const prefix = msg.source === 'whatsapp' ? 'thread-wa' : (msg.source === 'discord' ? 'ingress-dc' : 'stream-tk');
 
     if (isStealthMode) {
-      // Looks 100% like backend syslog / debug traces
-      const level = msg.isMe ? 'ACK' : 'INFO';
-      return `\x1b[90m[${time}]\x1b[0m \x1b[36m[${level}]\x1b[0m \x1b[33m<${tag}::${sender}>\x1b[0m payload: "${msg.text}"`;
+      // 100% authentic Linux systemd / journald structured syslog format
+      if (msg.isMe) {
+        return `\x1b[90m${timestampStr} srv-01 gateway[8412]:\x1b[0m \x1b[32m[egress-gw/You]\x1b[0m dispatch_ack: "${msg.text}"`;
+      } else {
+        return `\x1b[90m${timestampStr} srv-01 gateway[8412]:\x1b[0m \x1b[36m[${prefix}/${sender}]\x1b[0m payload_data: "${msg.text}"`;
+      }
     } else {
       // Clean chat mode
       const color = msg.isMe ? '\x1b[32m' : '\x1b[34m';
@@ -124,7 +138,7 @@ function createUI(hub) {
 
   function updateChannelList(channels) {
     if (!channels || channels.length === 0) {
-      channelList.setItems(['[No active chats yet]']);
+      channelList.setItems(['[No connected sockets]']);
     } else {
       const items = channels.map((c) => {
         const isCurrent = hub.activeChannel && hub.activeChannel.id === c.id;
@@ -138,7 +152,13 @@ function createUI(hub) {
   // Panic Mode Toggle
   function togglePanic() {
     isPanicMode = !isPanicMode;
+
     if (isPanicMode) {
+      if (isReadingInput) {
+        isReadingInput = false;
+        inputBox.cancel();
+      }
+
       panicBox.show();
       panicBox.focus();
       header.hide();
@@ -146,26 +166,151 @@ function createUI(hub) {
       logBox.hide();
       inputBox.hide();
 
+      // Live compilation stream
       panicInterval = setInterval(() => {
         panicBox.log(getRandomLog());
         screen.render();
-      }, 70);
+      }, 55);
     } else {
       clearInterval(panicInterval);
       panicInterval = null;
+
       panicBox.hide();
       header.show();
       channelList.show();
       logBox.show();
       inputBox.show();
-      inputBox.focus();
+
+      focusInput();
     }
     screen.render();
   }
 
+  function toggleStealthMode() {
+    isStealthMode = !isStealthMode;
+    appendLog(`\x1b[90m[SYSTEM]\x1b[0m Telemetry format: ${isStealthMode ? 'STEALTH (journalctl)' : 'CLEAN (compact)'}`);
+    header.setContent(` [k8s-pod: ingress-gw-89f] [cluster: prod-sea-01] [MODE: ${isStealthMode ? 'STEALTH-LOG' : 'CLEAN'}] [MEM: 198MB]\n Hotkeys: [Esc] or :p = Panic | [F2] or :m = Mode | [Tab] = Switch Pane | [Ctrl+C] = Exit`);
+    screen.render();
+  }
+
+  function startInputLoop() {
+    if (isReadingInput || isPanicMode) return;
+    isReadingInput = true;
+
+    inputBox.readInput(async (err, value) => {
+      isReadingInput = false;
+
+      if (err) return;
+
+      const raw = (value || '').trim();
+      inputBox.clearValue();
+      screen.render();
+
+      if (!raw) {
+        if (!isPanicMode && inputBox.focused) {
+          startInputLoop();
+        }
+        return;
+      }
+
+      // Built-in Stealth Commands
+      if (raw === ':p' || raw === ':panic' || raw === '/panic') {
+        togglePanic();
+        return;
+      }
+
+      if (raw === ':m' || raw === ':mode') {
+        toggleStealthMode();
+        if (!isPanicMode) startInputLoop();
+        return;
+      }
+
+      if (raw === ':clear' || raw === '/clear') {
+        logBox.setContent('');
+        appendLog('\x1b[90m[SYSTEM]\x1b[0m Buffer cleared.');
+        if (!isPanicMode) startInputLoop();
+        return;
+      }
+
+      if (raw === ':q' || raw === ':quit') {
+        return process.exit(0);
+      }
+
+      // Normal message dispatch
+      try {
+        await hub.sendCurrent(raw);
+      } catch (sendErr) {
+        appendLog(`\x1b[31m[ERROR]\x1b[0m Egress dispatch failed: ${sendErr.message}`);
+      }
+
+      if (!isPanicMode) {
+        startInputLoop();
+      }
+    });
+  }
+
+  function focusInput() {
+    channelList.blur();
+    inputBox.focus();
+    startInputLoop();
+    screen.render();
+  }
+
+  function focusList() {
+    if (isReadingInput) {
+      isReadingInput = false;
+      inputBox.cancel();
+    }
+    inputBox.blur();
+    channelList.focus();
+    screen.render();
+  }
+
+  // Intercept keys at the lowest driver level via screen.program
+  // This guarantees keys fire even when inputBox is capturing input!
+  screen.program.on('keypress', (ch, key) => {
+    if (!key) return;
+
+    // Panic Hotkeys: Escape, F3, Ctrl+P
+    if (key.name === 'f3' || key.name === 'escape' || (key.ctrl && key.name === 'p')) {
+      togglePanic();
+      return;
+    }
+
+    // If panic mode is active, any other key exits panic mode
+    if (isPanicMode) {
+      if (key.name === 'space' || key.name === 'return' || key.name === 'enter' || ch === 'q') {
+        togglePanic();
+        return;
+      }
+      return;
+    }
+
+    // Toggle format mode: F2
+    if (key.name === 'f2') {
+      toggleStealthMode();
+      return;
+    }
+
+    // Switch pane: Tab
+    if (key.name === 'tab') {
+      if (inputBox.focused) {
+        focusList();
+      } else {
+        focusInput();
+      }
+      return;
+    }
+
+    // Quit: Ctrl+C
+    if (key.ctrl && key.name === 'c') {
+      return process.exit(0);
+    }
+  });
+
   // Hub Event Listeners
   hub.on('platform_status', (st) => {
-    appendLog(`\x1b[90m[SYSTEM]\x1b[0m Service [${st.platform}] status changed: ${st.status} ${st.reason ? '(' + st.reason + ')' : ''}`);
+    appendLog(`\x1b[90m[SYSTEM]\x1b[0m Service socket [${st.platform}] status: ${st.status} ${st.reason ? '(' + st.reason + ')' : ''}`);
   });
 
   hub.on('message', (msg) => {
@@ -178,76 +323,34 @@ function createUI(hub) {
 
   hub.on('active_channel_changed', (channel) => {
     updateChannelList(hub.channels);
-    appendLog(`\x1b[90m[SYSTEM]\x1b[0m Switched active stream to: \x1b[33m${channel.displayName}\x1b[0m`);
-    inputBox.setLabel(` Send to [${channel.displayName}] (Press Enter) `);
+    inputBox.setLabel(` rpc-exec [target: ${channel.displayName}] (Enter: dispatch, :p: panic) `);
     screen.render();
   });
 
   hub.on('wa_qr', () => {
-    appendLog(`\x1b[33m[NOTICE]\x1b[0m WhatsApp session required. Run 'npm run auth' in terminal to link device.`);
+    appendLog(`\x1b[33m[NOTICE]\x1b[0m WhatsApp session required. Run 'npm run auth' or 'auth.bat' to link.`);
   });
 
-  // Handle Input Submission
-  inputBox.on('submit', async (value) => {
-    const text = (value || '').trim();
-    inputBox.clearValue();
-    inputBox.focus();
-
-    if (!text) {
-      screen.render();
-      return;
-    }
-
-    try {
-      await hub.sendCurrent(text);
-    } catch (err) {
-      appendLog(`\x1b[31m[ERROR]\x1b[0m Failed to send: ${err.message}`);
-    }
-    screen.render();
-  });
-
-  // Handle Channel Selection
+  // List Selection
   channelList.on('select', (item, index) => {
     if (hub.channels && hub.channels[index]) {
       hub.setActiveChannel(hub.channels[index].id);
-      inputBox.focus();
     }
+    focusInput();
   });
 
-  // Keyboard Shortcuts
-  screen.key(['tab'], () => {
-    if (channelList.focused) {
-      inputBox.focus();
-    } else {
-      channelList.focus();
-    }
-    screen.render();
+  // Click on list
+  channelList.on('click', () => {
+    focusList();
   });
 
-  screen.key(['f2'], () => {
-    isStealthMode = !isStealthMode;
-    appendLog(`\x1b[90m[SYSTEM]\x1b[0m Display format switched to: ${isStealthMode ? 'STEALTH (syslog)' : 'CLEAN (chat)'}`);
-    header.setContent(` [SYS-MONITOR v3.1] Node: prod-node-02 | Mode: ${isStealthMode ? 'STEALTH' : 'CLEAN'} [F2] | [F3] Panic | [Tab] Switch Pane | [Ctrl+C] Exit`);
-    screen.render();
-  });
-
-  screen.key(['f3'], () => {
-    togglePanic();
-  });
-
-  panicBox.key(['escape', 'f3', 'space', 'q'], () => {
-    if (isPanicMode) {
-      togglePanic();
-    }
-  });
-
-  screen.key(['C-c'], () => {
-    return process.exit(0);
+  // Click on input
+  inputBox.on('click', () => {
+    focusInput();
   });
 
   // Initial focus
-  inputBox.focus();
-  screen.render();
+  focusInput();
 
   return { screen, appendLog };
 }
