@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PR #412: Optimize database connection pool by lossy · Pull Request #412</title>
-  <!-- GitHub Favicon Disguise -->
+  <title>Josjis Desktop</title>
+  <!-- GitHub Favicon disguise -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='%23ffffff' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' d='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z'%3E%3C/path%3E%3C/svg%3E">
   <style>
     * {
@@ -12,89 +12,231 @@
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
     }
-    body {
+    html, body {
+      height: 100%;
       background-color: #0c1317;
       color: #e9edef;
-      height: 100vh;
-      display: flex;
       overflow: hidden;
+      transition: opacity 0.35s ease, filter 0.35s ease;
     }
-    /* Main App Layout */
-    #app {
+
+    /* Container */
+    #rootContainer {
       display: flex;
-      width: 100%;
-      height: 100%;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
     }
-    /* Left Sidebar */
+
+    /* Top Control Bar */
+    .top-bar {
+      height: 42px;
+      background-color: #1f2c34;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      border-bottom: 1px solid #2a3942;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .top-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .back-btn {
+      background: #2a3942;
+      border: none;
+      color: #e9edef;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .back-btn:hover {
+      background: #374248;
+    }
+    .top-title {
+      font-weight: 600;
+      color: #00a884;
+      font-size: 13px;
+    }
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .opacity-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #8696a0;
+      font-size: 11px;
+    }
+    .opacity-slider {
+      width: 70px;
+      cursor: pointer;
+      accent-color: #00a884;
+    }
+    .stealth-btn {
+      background-color: #dc2626;
+      color: #ffffff;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .stealth-btn:hover {
+      background-color: #b91c1c;
+    }
+
+    /* ================================================= */
+    /* 1. PLATFORM SELECTOR VIEW                         */
+    /* ================================================= */
+    #viewSelector {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #111b21;
+    }
+    .selector-title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #e9edef;
+    }
+    .selector-subtitle {
+      font-size: 13px;
+      color: #8696a0;
+      margin-bottom: 28px;
+      text-align: center;
+    }
+    .platform-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .card {
+      background: #202c33;
+      border: 1px solid #2a3942;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .card:hover {
+      background: #2a3942;
+      border-color: #00a884;
+      transform: translateY(-2px);
+    }
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .icon-wa { background: #00a884; color: white; }
+    .icon-dc { background: #5865f2; color: white; }
+    .icon-tk { background: #000000; border: 1px solid #fe2c55; color: #25f4ee; }
+    .card-info {
+      flex: 1;
+    }
+    .card-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e9edef;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-desc {
+      font-size: 12px;
+      color: #8696a0;
+      margin-top: 3px;
+    }
+    .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .badge-ready { background: #005c4b; color: #25d366; }
+    .badge-standby { background: #374248; color: #aebac1; }
+
+    /* ================================================= */
+    /* 2. MAIN CHAT VIEW (WHATSAPP DESKTOP)              */
+    /* ================================================= */
+    #viewChat {
+      flex: 1;
+      display: none;
+      height: calc(100vh - 42px);
+    }
     .sidebar {
-      width: 380px;
-      min-width: 320px;
+      width: 320px;
+      min-width: 260px;
       background-color: #111b21;
       border-right: 1px solid #222d34;
       display: flex;
       flex-direction: column;
       height: 100%;
     }
-    .sidebar-header {
-      background-color: #202c33;
-      padding: 10px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .platform-tabs {
+    .sidebar-search-bar {
+      padding: 8px 12px;
+      background-color: #111b21;
+      border-bottom: 1px solid #222d34;
       display: flex;
       gap: 8px;
     }
-    .tab-btn {
-      background: none;
-      border: none;
-      color: #aebac1;
-      padding: 6px 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.2s;
-    }
-    .tab-btn.active {
-      background: #00a884;
-      color: #ffffff;
-    }
-    .new-chat-btn {
-      background: #00a884;
-      border: none;
-      color: #fff;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    .new-chat-btn:hover {
-      background: #029071;
-    }
-    .search-box {
-      padding: 8px 12px;
-      background: #111b21;
-      border-bottom: 1px solid #222d34;
-    }
     .search-input {
-      width: 100%;
+      flex: 1;
       background: #202c33;
       border: none;
       border-radius: 8px;
-      padding: 8px 12px;
+      padding: 6px 12px;
       color: #e9edef;
       font-size: 13px;
       outline: none;
     }
-    .search-input::placeholder {
+    .filter-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #111b21;
+      border-bottom: 1px solid #222d34;
+    }
+    .filter-btn {
+      background: #202c33;
+      border: none;
       color: #8696a0;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    .filter-btn.active {
+      background: #005c4b;
+      color: #25d366;
+      font-weight: 600;
     }
     .chat-list {
       flex: 1;
@@ -103,11 +245,10 @@
     .chat-item {
       display: flex;
       align-items: center;
-      padding: 12px 16px;
+      padding: 10px 14px;
       cursor: pointer;
-      border-bottom: 1px solid #202c33;
-      transition: background 0.15s;
-      gap: 12px;
+      border-bottom: 1px solid #182229;
+      gap: 10px;
     }
     .chat-item:hover {
       background-color: #202c33;
@@ -116,16 +257,16 @@
       background-color: #2a3942;
     }
     .avatar {
-      width: 44px;
-      height: 44px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
-      background-color: #6a7982;
+      background: #6a7982;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: bold;
       color: #fff;
-      font-size: 16px;
+      font-size: 15px;
       flex-shrink: 0;
     }
     .chat-info {
@@ -135,10 +276,10 @@
     .chat-top {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .chat-name {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 500;
       color: #e9edef;
       white-space: nowrap;
@@ -151,84 +292,58 @@
       flex-shrink: 0;
     }
     .chat-snippet {
-      font-size: 13px;
+      font-size: 12px;
       color: #8696a0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    /* Right Main Chat Area */
-    .main-chat {
+    /* Chat Conversation Area */
+    .chat-main {
       flex: 1;
       display: flex;
       flex-direction: column;
       background-color: #0b141a;
       background-image: radial-gradient(#182229 1px, transparent 1px);
-      background-size: 20px 20px;
+      background-size: 18px 18px;
       height: 100%;
     }
     .chat-header {
+      height: 52px;
       background-color: #202c33;
-      padding: 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-left: 1px solid #222d34;
-      height: 60px;
-    }
-    .active-info {
+      padding: 0 16px;
       display: flex;
       align-items: center;
       gap: 12px;
+      border-left: 1px solid #222d34;
+      flex-shrink: 0;
     }
     .active-name {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
       color: #e9edef;
     }
     .active-status {
-      font-size: 12px;
+      font-size: 11px;
       color: #00a884;
-    }
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .stealth-btn {
-      background-color: #ef4444;
-      color: white;
-      border: none;
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.2s;
-    }
-    .stealth-btn:hover {
-      background-color: #dc2626;
     }
     .messages-area {
       flex: 1;
       overflow-y: auto;
-      padding: 20px 24px;
+      padding: 16px 20px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
     .bubble {
-      max-width: 65%;
+      max-width: 72%;
       padding: 8px 12px;
       border-radius: 8px;
-      font-size: 14px;
+      font-size: 13.5px;
       line-height: 1.4;
-      position: relative;
       word-wrap: break-word;
+      user-select: text;
     }
     .bubble.incoming {
       align-self: flex-start;
@@ -261,98 +376,98 @@
       color: #aebac1;
     }
     .input-bar {
+      height: 54px;
       background-color: #202c33;
-      padding: 10px 16px;
+      padding: 8px 12px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      flex-shrink: 0;
     }
     .message-input {
       flex: 1;
       background-color: #2a3942;
       border: none;
       border-radius: 8px;
-      padding: 12px 16px;
+      padding: 10px 14px;
       color: #e9edef;
-      font-size: 14px;
+      font-size: 13.5px;
       outline: none;
-      resize: none;
-      max-height: 100px;
+      user-select: text;
     }
     .send-btn {
       background-color: #00a884;
       border: none;
       border-radius: 50%;
-      width: 44px;
-      height: 44px;
+      width: 38px;
+      height: 38px;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
       cursor: pointer;
       flex-shrink: 0;
-      transition: background 0.2s;
-    }
-    .send-btn:hover {
-      background-color: #029071;
     }
 
-    /* Modal New Chat */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
+    /* ================================================= */
+    /* 3. DISCORD PLACEHOLDER VIEW                       */
+    /* ================================================= */
+    #viewDiscord {
+      flex: 1;
       display: none;
+      background-color: #313338;
+      color: #dbdee1;
+      height: calc(100vh - 42px);
+    }
+    .discord-sidebar {
+      width: 220px;
+      background-color: #2b2d31;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-right: 1px solid #1f2023;
+    }
+    .discord-channel {
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #949ba4;
+    }
+    .discord-channel.active {
+      background-color: #404249;
+      color: #fff;
+    }
+    .discord-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
-    }
-    .modal-box {
-      background: #202c33;
-      padding: 24px;
-      border-radius: 12px;
-      width: 360px;
-    }
-    .modal-box h3 {
-      margin-bottom: 12px;
-      font-size: 16px;
-    }
-    .modal-input {
-      width: 100%;
-      background: #111b21;
-      border: 1px solid #374248;
-      border-radius: 8px;
-      padding: 10px 12px;
-      color: #fff;
-      margin-bottom: 16px;
-      font-size: 14px;
-    }
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-    .btn-secondary {
-      background: #374248;
-      border: none;
-      color: #fff;
-      padding: 8px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    .btn-primary {
-      background: #00a884;
-      border: none;
-      color: #fff;
-      padding: 8px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 600;
+      padding: 30px;
+      text-align: center;
     }
 
-    /* ======================================================== */
-    /* STEALTH / PANIC OVERLAY (LOOKS 100% LIKE VS CODE EDITOR) */
-    /* ======================================================== */
+    /* ================================================= */
+    /* 4. TIKTOK PLACEHOLDER VIEW                        */
+    /* ================================================= */
+    #viewTiktok {
+      flex: 1;
+      display: none;
+      background-color: #121212;
+      color: #fff;
+      height: calc(100vh - 42px);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      padding: 30px;
+      text-align: center;
+    }
+
+    /* ================================================= */
+    /* 5. STEALTH / PANIC OVERLAY (VS CODE DISGUISE)     */
+    /* ================================================= */
     #panicScreen {
       position: fixed;
       inset: 0;
@@ -379,7 +494,7 @@
       display: flex;
     }
     .vscode-sidebar {
-      width: 220px;
+      width: 200px;
       background: #252526;
       border-right: 1px solid #1e1e1e;
       padding: 10px;
@@ -413,9 +528,6 @@
       font-size: 12px;
       border-right: 1px solid #252526;
       border-top: 1px solid #007acc;
-      display: flex;
-      align-items: center;
-      gap: 8px;
     }
     .code-content {
       flex: 1;
@@ -429,89 +541,147 @@
     .str { color: #ce9178; }
     .cm { color: #6a9955; font-style: italic; }
     .type { color: #4ec9b0; }
-    .panic-restore-tip {
-      position: absolute;
-      top: 6px;
-      right: 12px;
-      font-size: 11px;
-      color: #666;
-      cursor: pointer;
-    }
-    .panic-restore-tip:hover {
-      color: #aaa;
-    }
   </style>
 </head>
 <body>
 
-  <!-- Main App -->
-  <div id="app">
-    <!-- Left Sidebar -->
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <div class="platform-tabs">
-          <button class="tab-btn active" id="tabWa" onclick="switchPlatform('whatsapp')">💬 WhatsApp</button>
-          <button class="tab-btn" id="tabDc" onclick="switchPlatform('discord')">🎮 Discord</button>
+  <div id="rootContainer">
+    <!-- Top Control Bar -->
+    <div class="top-bar">
+      <div class="top-left">
+        <button class="back-btn" id="btnBackPlatform" onclick="showPlatformSelector()" style="display: none;">
+          ⮌ Pilih Platform
+        </button>
+        <span class="top-title" id="platformTitle">Josjis Hub</span>
+      </div>
+      <div class="top-right">
+        <div class="opacity-control" title="Redup otomatis saat mouse tidak menyentuh layar">
+          <span>👻 Auto-Dim:</span>
+          <input type="range" id="opacitySlider" class="opacity-slider" min="10" max="90" value="20" oninput="updateIdleOpacity(this.value)">
+          <span id="opacityVal">20%</span>
         </div>
-        <button class="new-chat-btn" onclick="openNewChatModal()">+ Chat</button>
-      </div>
-
-      <div class="search-box">
-        <input type="text" id="searchInput" class="search-input" placeholder="Cari atau mulai chat baru..." oninput="filterChats()">
-      </div>
-
-      <div class="chat-list" id="chatList">
-        <!-- Rendered chats -->
+        <button class="stealth-btn" onclick="togglePanic()" title="Tekan Esc untuk sembunyikan">🚨 Stealth (Esc)</button>
       </div>
     </div>
 
-    <!-- Right Main Chat -->
-    <div class="main-chat">
-      <div class="chat-header">
-        <div class="active-info">
+    <!-- 1. Platform Selector -->
+    <div id="viewSelector">
+      <div class="selector-title">Pilih Platform Komunikasi</div>
+      <div class="selector-subtitle">Jalankan chat langsung di layar kecil dengan fitur auto-dimming stealth.</div>
+
+      <div class="platform-cards">
+        <!-- WhatsApp -->
+        <div class="card" onclick="openPlatform('whatsapp')">
+          <div class="card-icon icon-wa">💬</div>
+          <div class="card-info">
+            <div class="card-name">
+              <span>WhatsApp</span>
+              <span class="badge badge-ready">● Ready</span>
+            </div>
+            <div class="card-desc">Realtime chat, sinkron kontak & riwayat lengkap.</div>
+          </div>
+        </div>
+
+        <!-- Discord -->
+        <div class="card" onclick="openPlatform('discord')">
+          <div class="card-icon icon-dc">🎮</div>
+          <div class="card-info">
+            <div class="card-name">
+              <span>Discord</span>
+              <span class="badge badge-standby">Placeholder</span>
+            </div>
+            <div class="card-desc">Bot token gateway, server channels & DM.</div>
+          </div>
+        </div>
+
+        <!-- TikTok DM -->
+        <div class="card" onclick="openPlatform('tiktok')">
+          <div class="card-icon icon-tk">🎵</div>
+          <div class="card-info">
+            <div class="card-name">
+              <span>TikTok DM</span>
+              <span class="badge badge-standby">Placeholder</span>
+            </div>
+            <div class="card-desc">Direct messaging via headless session cookie.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. WhatsApp Desktop View -->
+    <div id="viewChat">
+      <!-- Left Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-search-bar">
+          <input type="text" id="searchInput" class="search-input" placeholder="Cari kontak..." oninput="filterChats()">
+        </div>
+        <div class="filter-tabs">
+          <button class="filter-btn active" id="filterAll" onclick="setFilter('all')">Semua</button>
+          <button class="filter-btn" id="filterPersonal" onclick="setFilter('personal')">Pribadi</button>
+          <button class="filter-btn" id="filterGroups" onclick="setFilter('groups')">Grup</button>
+        </div>
+        <div class="chat-list" id="chatList">
+          <!-- Rendered contacts -->
+        </div>
+      </div>
+
+      <!-- Right Chat Area -->
+      <div class="chat-main">
+        <div class="chat-header">
           <div class="avatar" id="activeAvatar">?</div>
           <div>
             <div class="active-name" id="activeName">Pilih Chat</div>
             <div class="active-status" id="activeStatus">Terhubung ke WhatsApp</div>
           </div>
         </div>
-        <div class="header-actions">
-          <button class="stealth-btn" onclick="togglePanic()">🚨 Stealth / Panic (Esc)</button>
+
+        <div class="messages-area" id="messagesArea">
+          <div style="text-align: center; color: #8696a0; margin-top: 50px; font-size: 13px;">
+            Pilih salah satu kontak di sebelah kiri untuk melihat pesan.
+          </div>
+        </div>
+
+        <div class="input-bar">
+          <input type="text" id="messageInput" class="message-input" placeholder="Ketik pesan..." onkeydown="handleInputKey(event)">
+          <button class="send-btn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+            </svg>
+          </button>
         </div>
       </div>
+    </div>
 
-      <div class="messages-area" id="messagesArea">
-        <div style="text-align: center; color: #8696a0; margin-top: 40px;">
-          Pilih salah satu kontak di sebelah kiri untuk mulai membaca & mengirim chat.
-        </div>
+    <!-- 3. Discord Placeholder View -->
+    <div id="viewDiscord">
+      <div class="discord-sidebar">
+        <div style="font-weight: bold; font-size: 14px; color: #fff; margin-bottom: 8px;">Servers / DM</div>
+        <div class="discord-channel active"># general</div>
+        <div class="discord-channel"># dev-chat</div>
+        <div class="discord-channel"># announcements</div>
       </div>
+      <div class="discord-main">
+        <div style="font-size: 40px; margin-bottom: 12px;">🎮</div>
+        <h3 style="color: #fff; margin-bottom: 8px;">Discord Gateway Module</h3>
+        <p style="font-size: 13px; color: #949ba4; max-width: 400px; line-height: 1.5; margin-bottom: 16px;">
+          Modul Discord siap dikonfigurasi. Masukkan <code>DISCORD_TOKEN</code> di file <code>.env</code> untuk menghubungkan bot ke server Discord kamu.
+        </p>
+        <span class="badge badge-standby">Status: Standby (Waiting for token)</span>
+      </div>
+    </div>
 
-      <div class="input-bar">
-        <input type="text" id="messageInput" class="message-input" placeholder="Ketik pesan..." onkeydown="handleInputKey(event)">
-        <button class="send-btn" onclick="sendMessage()">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
-          </svg>
-        </button>
-      </div>
+    <!-- 4. TikTok Placeholder View -->
+    <div id="viewTiktok">
+      <div style="font-size: 40px; margin-bottom: 12px;">🎵</div>
+      <h3 style="color: #fff; margin-bottom: 8px;">TikTok Direct Messaging Module</h3>
+      <p style="font-size: 13px; color: #8696a0; max-width: 400px; line-height: 1.5; margin-bottom: 16px;">
+        Modul TikTok DM headless session. Masukkan cookie akun di <code>auth/tiktok_cookies.json</code> untuk mengaktifkan sinkronisasi DM.
+      </p>
+      <span class="badge badge-standby">Status: Standby (Session cookie required)</span>
     </div>
   </div>
 
-  <!-- New Chat Modal -->
-  <div class="modal-overlay" id="newChatModal">
-    <div class="modal-box">
-      <h3>Kirim Pesan ke Nomor Baru</h3>
-      <p style="font-size: 13px; color: #8696a0; margin-bottom: 12px;">Masukkan nomor WhatsApp (contoh: 08123456789 atau 62812...)</p>
-      <input type="text" id="newPhoneInput" class="modal-input" placeholder="08xxxxxxxxxx">
-      <input type="text" id="newFirstMsgInput" class="modal-input" placeholder="Ketik pesan pertama...">
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="closeNewChatModal()">Batal</button>
-        <button class="btn-primary" onclick="submitNewChat()">Kirim</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Stealth / Panic Screen (Disguised as Visual Studio Code) -->
+  <!-- Stealth / Panic Screen (VS Code Fullscreen) -->
   <div id="panicScreen">
     <div class="vscode-menu">
       <span>File</span>
@@ -522,23 +692,20 @@
       <span>Run</span>
       <span>Terminal</span>
       <span>Help</span>
-      <span class="panic-restore-tip" onclick="togglePanic()">(Tekan Esc untuk kembali)</span>
+      <span style="margin-left: auto; color: #666; cursor: pointer;" onclick="togglePanic()">(Tekan Esc untuk kembali)</span>
     </div>
     <div class="vscode-body">
       <div class="vscode-sidebar">
         <div style="font-weight: bold; margin-bottom: 8px; color: #999;">EXPLORER</div>
         <div class="tree-item">📁 src</div>
         <div class="tree-item">&nbsp;&nbsp;📁 controllers</div>
-        <div class="tree-item">&nbsp;&nbsp;📁 middleware</div>
         <div class="tree-item active">&nbsp;&nbsp;📄 server.ts</div>
         <div class="tree-item">&nbsp;&nbsp;📄 database.prisma</div>
         <div class="tree-item">📄 package.json</div>
-        <div class="tree-item">📄 tsconfig.json</div>
       </div>
       <div class="vscode-editor">
         <div class="vscode-tabs">
-          <div class="tab">server.ts <span style="font-size: 10px;">✕</span></div>
-          <div class="tab" style="background: #2d2d2d; color: #999;">database.prisma</div>
+          <div class="tab">server.ts <span style="font-size: 10px; margin-left: 6px;">✕</span></div>
         </div>
         <div class="code-content">
 <pre><span class="cm">/**
@@ -547,29 +714,16 @@
  */</span>
 <span class="kw">import</span> express, { <span class="type">Request</span>, <span class="type">Response</span> } <span class="kw">from</span> <span class="str">'express'</span>;
 <span class="kw">import</span> { <span class="type">PrismaClient</span> } <span class="kw">from</span> <span class="str">'@prisma/client'</span>;
-<span class="kw">import</span> { <span class="fn">createLogger</span> } <span class="kw">from</span> <span class="str">'./utils/logger'</span>;
 
 <span class="kw">const</span> app = <span class="fn">express</span>();
-<span class="kw">const</span> prisma = <span class="kw">new</span> <span class="type">PrismaClient</span>({
-  log: [<span class="str">'query'</span>, <span class="str">'info'</span>, <span class="str">'warn'</span>, <span class="str">'error'</span>],
-});
+<span class="kw">const</span> prisma = <span class="kw">new</span> <span class="type">PrismaClient</span>();
 
-<span class="kw">export async function</span> <span class="fn">syncClusterNodeTelemetry</span>(clusterId: <span class="type">string</span>): <span class="type">Promise</span>&lt;<span class="type">void</span>&gt; {
-  <span class="kw">const</span> session = <span class="kw">await</span> prisma.nodeSession.<span class="fn">findFirst</span>({
-    where: { clusterId, status: <span class="str">'HEALTHY'</span> },
-    select: { id: <span class="kw">true</span>, latencyMs: <span class="kw">true</span>, throughput: <span class="kw">true</span> }
+<span class="kw">export async function</span> <span class="fn">syncTelemetryCluster</span>(nodeId: <span class="type">string</span>): <span class="type">Promise</span>&lt;<span class="type">void</span>&gt; {
+  <span class="kw">const</span> session = <span class="kw">await</span> prisma.clusterNode.<span class="fn">findFirst</span>({
+    where: { nodeId, status: <span class="str">'ONLINE'</span> }
   });
-
-  <span class="kw">if</span> (!session) {
-    <span class="kw">throw new</span> <span class="type">Error</span>(<span class="str">`Cluster node ${clusterId} unreachable on telemetry port 8412`</span>);
-  }
-
-  <span class="fn">console</span>.<span class="fn">log</span>(<span class="str">`[k8s-pod] Telemetry synced: latency=${session.latencyMs}ms`</span>);
+  <span class="fn">console</span>.<span class="fn">log</span>(<span class="str">`[node-agent] Telemetry synced OK`</span>);
 }
-
-app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span class="type">Request</span>, res: <span class="type">Response</span>) =&gt; {
-  res.<span class="fn">status</span>(<span class="kw">200</span>).<span class="fn">json</span>({ status: <span class="str">'UP'</span>, uptime: process.<span class="fn">uptime</span>() });
-});
 </pre>
         </div>
       </div>
@@ -579,11 +733,91 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
   <script>
     let ws = null;
     let allChannels = [];
-    let currentPlatform = 'whatsapp';
     let activeChannel = null;
     let messageHistory = [];
+    let currentFilter = 'all';
     let isPanic = false;
 
+    // Auto-Dimming Opacity System
+    let idleOpacity = 0.20;
+    let idleTimer = null;
+    let isDimmed = false;
+
+    function updateIdleOpacity(val) {
+      idleOpacity = val / 100;
+      document.getElementById('opacityVal').innerText = `${val}%`;
+      if (isDimmed) {
+        document.body.style.opacity = idleOpacity;
+      }
+    }
+
+    function setDimmed(dimmed) {
+      isDimmed = dimmed;
+      if (dimmed) {
+        document.body.style.opacity = idleOpacity;
+        document.body.style.filter = 'brightness(0.65)';
+      } else {
+        document.body.style.opacity = '1';
+        document.body.style.filter = 'none';
+      }
+    }
+
+    function resetIdleTimer() {
+      setDimmed(false);
+      clearTimeout(idleTimer);
+      // Auto-dim after 3.5 seconds of mouse inactivity
+      idleTimer = setTimeout(() => {
+        setDimmed(true);
+      }, 3500);
+    }
+
+    document.addEventListener('mousemove', resetIdleTimer);
+    document.addEventListener('mouseenter', () => setDimmed(false));
+    document.addEventListener('mouseleave', () => setDimmed(true));
+
+    // Platform Navigation
+    function showPlatformSelector() {
+      document.getElementById('viewSelector').style.display = 'flex';
+      document.getElementById('viewChat').style.display = 'none';
+      document.getElementById('viewDiscord').style.display = 'none';
+      document.getElementById('viewTiktok').style.display = 'none';
+      document.getElementById('btnBackPlatform').style.display = 'none';
+      document.getElementById('platformTitle').innerText = 'Josjis Hub';
+    }
+
+    function openPlatform(platform) {
+      document.getElementById('viewSelector').style.display = 'none';
+      document.getElementById('btnBackPlatform').style.display = 'flex';
+
+      if (platform === 'whatsapp') {
+        document.getElementById('viewChat').style.display = 'flex';
+        document.getElementById('viewDiscord').style.display = 'none';
+        document.getElementById('viewTiktok').style.display = 'none';
+        document.getElementById('platformTitle').innerText = '💬 WhatsApp Desktop';
+        renderChatList();
+      } else if (platform === 'discord') {
+        document.getElementById('viewChat').style.display = 'none';
+        document.getElementById('viewDiscord').style.display = 'flex';
+        document.getElementById('viewTiktok').style.display = 'none';
+        document.getElementById('platformTitle').innerText = '🎮 Discord Gateway';
+      } else if (platform === 'tiktok') {
+        document.getElementById('viewChat').style.display = 'none';
+        document.getElementById('viewDiscord').style.display = 'none';
+        document.getElementById('viewTiktok').style.display = 'flex';
+        document.getElementById('platformTitle').innerText = '🎵 TikTok DM';
+      }
+    }
+
+    // Filter tabs
+    function setFilter(type) {
+      currentFilter = type;
+      document.getElementById('filterAll').classList.toggle('active', type === 'all');
+      document.getElementById('filterPersonal').classList.toggle('active', type === 'personal');
+      document.getElementById('filterGroups').classList.toggle('active', type === 'groups');
+      renderChatList();
+    }
+
+    // WebSocket Client
     function connectWS() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${protocol}//${window.location.host}`);
@@ -609,7 +843,6 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
           if (activeChannel && payload.data.channelId === activeChannel.rawId) {
             appendMessageBubble(payload.data);
           }
-          // Update snippet in list
           renderChatList();
         } else if (payload.type === 'platform_status') {
           if (payload.data.platform === 'whatsapp') {
@@ -624,19 +857,17 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
       };
     }
 
-    function switchPlatform(platform) {
-      currentPlatform = platform;
-      document.getElementById('tabWa').classList.toggle('active', platform === 'whatsapp');
-      document.getElementById('tabDc').classList.toggle('active', platform === 'discord');
-      renderChatList();
-    }
-
     function renderChatList() {
       const container = document.getElementById('chatList');
       const query = document.getElementById('searchInput').value.toLowerCase().trim();
 
       const filtered = allChannels.filter(c => {
-        if (c.platform !== currentPlatform) return false;
+        if (c.platform !== 'whatsapp') return false;
+
+        const isGrp = c.isGroup || (c.displayName && c.displayName.startsWith('[Grup]'));
+        if (currentFilter === 'personal' && isGrp) return false;
+        if (currentFilter === 'groups' && !isGrp) return false;
+
         if (!query) return true;
         return c.displayName.toLowerCase().includes(query) || (c.rawId && c.rawId.includes(query));
       });
@@ -644,20 +875,27 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
       if (filtered.length === 0) {
         container.innerHTML = `
           <div style="padding: 24px; text-align: center; color: #8696a0; font-size: 13px;">
-            Belum ada chat terhubung.<br>Klik tombol <b>+ Chat</b> di atas untuk mulai.
+            Belum ada chat yang cocok.
           </div>`;
         return;
       }
 
       container.innerHTML = filtered.map(c => {
         const isActive = activeChannel && activeChannel.id === c.id;
-        const cleanName = c.displayName.replace(/^svc-(wa|dc)\//, '');
-        const initial = cleanName.charAt(0).toUpperCase();
+        const cleanName = c.displayName;
+        const initial = cleanName.replace('[Grup] ', '').charAt(0).toUpperCase();
 
-        // Find last message
         const lastMsg = messageHistory.slice().reverse().find(m => m.channelId === c.rawId);
-        const snippet = lastMsg ? (lastMsg.isMe ? 'Kamu: ' : '') + lastMsg.text : 'Klik untuk buka chat';
-        const time = lastMsg ? new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        const snippet = lastMsg ? (lastMsg.isMe ? 'Kamu: ' : '') + lastMsg.text : (c.lastMessage || 'Buka chat...');
+
+        let timeStr = '';
+        if (c.timestamp && c.timestamp > 0) {
+          const d = new Date(c.timestamp);
+          const isToday = new Date().toDateString() === d.toDateString();
+          timeStr = isToday
+            ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : `${d.getDate()}/${d.getMonth() + 1}`;
+        }
 
         return `
           <div class="chat-item ${isActive ? 'active' : ''}" onclick="selectChat('${c.id}')">
@@ -665,7 +903,7 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
             <div class="chat-info">
               <div class="chat-top">
                 <span class="chat-name">${escapeHtml(cleanName)}</span>
-                <span class="chat-time">${time}</span>
+                <span class="chat-time">${timeStr}</span>
               </div>
               <div class="chat-snippet">${escapeHtml(snippet)}</div>
             </div>
@@ -683,16 +921,16 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
     function renderActiveChat() {
       if (!activeChannel) return;
 
-      const cleanName = activeChannel.displayName.replace(/^svc-(wa|dc)\//, '');
+      const cleanName = activeChannel.displayName;
       document.getElementById('activeName').innerText = cleanName;
-      document.getElementById('activeAvatar').innerText = cleanName.charAt(0).toUpperCase();
+      document.getElementById('activeAvatar').innerText = cleanName.replace('[Grup] ', '').charAt(0).toUpperCase();
 
       const area = document.getElementById('messagesArea');
       area.innerHTML = '';
 
       const relevant = messageHistory.filter(m => m.channelId === activeChannel.rawId);
       if (relevant.length === 0) {
-        area.innerHTML = `<div style="text-align: center; color: #8696a0; margin-top: 40px;">Belum ada pesan sebelumnya. Ketik di bawah untuk mulai kirim.</div>`;
+        area.innerHTML = `<div style="text-align: center; color: #8696a0; margin-top: 40px; font-size: 13px;">Belum ada pesan sebelumnya. Ketik di bawah untuk mulai kirim.</div>`;
       } else {
         relevant.forEach(appendMessageBubble);
       }
@@ -728,7 +966,7 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
       if (!text) return;
 
       if (!activeChannel) {
-        alert('Pilih kontak tujuan di sebelah kiri terlebih dahulu atau klik "+ Chat"!');
+        alert('Pilih kontak tujuan di sebelah kiri terlebih dahulu!');
         return;
       }
 
@@ -749,37 +987,7 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
       renderChatList();
     }
 
-    function openNewChatModal() {
-      document.getElementById('newChatModal').style.display = 'flex';
-      document.getElementById('newPhoneInput').focus();
-    }
-
-    function closeNewChatModal() {
-      document.getElementById('newChatModal').style.display = 'none';
-      document.getElementById('newPhoneInput').value = '';
-      document.getElementById('newFirstMsgInput').value = '';
-    }
-
-    function submitNewChat() {
-      const phone = document.getElementById('newPhoneInput').value.trim();
-      const firstMsg = document.getElementById('newFirstMsgInput').value.trim();
-
-      if (!phone || !firstMsg) {
-        alert('Nomor HP dan pesan pertama tidak boleh kosong!');
-        return;
-      }
-
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'send_to_number',
-          target: phone,
-          text: firstMsg
-        }));
-        closeNewChatModal();
-      }
-    }
-
-    // Stealth / Panic Mode
+    // Stealth / Panic Mode (VS Code)
     function togglePanic() {
       isPanic = !isPanic;
       const panic = document.getElementById('panicScreen');
@@ -788,11 +996,10 @@ app.<span class="fn">get</span>(<span class="str">'/health'</span>, (req: <span 
         document.title = 'server.ts - backend-services - Visual Studio Code';
       } else {
         panic.style.display = 'none';
-        document.title = 'PR #412: Optimize database connection pool by lossy · Pull Request #412';
+        document.title = 'PR #412: Optimize database connection pool · Pull Request #412';
       }
     }
 
-    // Global Esc shortcut for Stealth
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         togglePanic();
