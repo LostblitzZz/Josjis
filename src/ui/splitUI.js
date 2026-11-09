@@ -132,12 +132,20 @@ function createSplitUI(hub) {
 
   function updateContactsList(channels) {
     if (!channels || channels.length === 0) {
-      contactList.setItems(['[Menunggu sinkronisasi kontak...]']);
+      contactList.setItems(['[Menunggu sinkronisasi chat terbaru...]']);
     } else {
       const items = channels.map((c) => {
         const isCurrent = hub.activeChannel && hub.activeChannel.id === c.id;
-        const name = getCleanName(c.displayName);
-        return `${isCurrent ? '● ' : '  '}${name}`;
+        const name = c.displayName || getCleanName(c.id);
+        let timeStr = '';
+        if (c.timestamp && c.timestamp > 0) {
+          const d = new Date(c.timestamp);
+          const isToday = new Date().toDateString() === d.toDateString();
+          timeStr = isToday
+            ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : `${d.getDate()}/${d.getMonth() + 1}`;
+        }
+        return `${isCurrent ? '● ' : '  '}${name} ${timeStr ? '(' + timeStr + ')' : ''}`;
       });
       contactList.setItems(items);
     }

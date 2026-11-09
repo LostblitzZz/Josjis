@@ -131,7 +131,7 @@ class WhatsAppAdapter extends EventEmitter {
     this.messagesFile = path.join(this.authDir, 'messages_store.json');
     this.sock = null;
     this.isConnected = false;
-    this.contacts = new Map(); // jid -> { jid, name, lastMessage, timestamp }
+    this.contacts = new Map(); // jid -> { jid, name, lastMessage, timestamp, isGroup }
     this.messages = new Map(); // jid -> [ array of messages ]
     this.saveTimer = null;
 
@@ -145,7 +145,10 @@ class WhatsAppAdapter extends EventEmitter {
         const raw = fs.readFileSync(this.cacheFile, 'utf8');
         const entries = JSON.parse(raw);
         for (const [jid, data] of entries) {
-          this.contacts.set(jid, data);
+          this.contacts.set(jid, {
+            ...data,
+            isGroup: jid.endsWith('@g.us')
+          });
         }
       }
     } catch {
@@ -172,6 +175,19 @@ class WhatsAppAdapter extends EventEmitter {
         const entries = JSON.parse(raw);
         for (const [jid, list] of entries) {
           this.messages.set(jid, list);
+          if (list && list.length > 0) {
+            const last = list[list.length - 1];
+            const existing = this.contacts.get(jid) || {};
+            const isGroup = jid.endsWith('@g.us');
+            this.contacts.set(jid, {
+              ...existing,
+              jid,
+              name: existing.name || last.channelName || jid.split('@')[0],
+              lastMessage: last.text,
+              timestamp: Math.max(existing.timestamp || 0, last.timestamp || 0),
+              isGroup
+            });
+          }
         }
       }
     } catch {
@@ -202,7 +218,6 @@ class WhatsAppAdapter extends EventEmitter {
     }
     const list = this.messages.get(msg.channelId);
 
-    // Deduplicate
     const exists = list.some(
       (m) => m.timestamp === msg.timestamp && m.text === msg.text && m.isMe === msg.isMe
     );
@@ -214,14 +229,15 @@ class WhatsAppAdapter extends EventEmitter {
       }
     }
 
-    // Update contacts last message
     const existing = this.contacts.get(msg.channelId) || {};
+    const isGroup = msg.channelId.endsWith('@g.us');
     this.contacts.set(msg.channelId, {
       ...existing,
       jid: msg.channelId,
       name: existing.name || msg.channelName || msg.channelId.split('@')[0],
       lastMessage: msg.text,
-      timestamp: Math.max(existing.timestamp || 0, msg.timestamp || 0)
+      timestamp: Math.max(existing.timestamp || 0, msg.timestamp || 0),
+      isGroup
     });
 
     this.saveContactsCache();
@@ -269,9 +285,9 @@ class WhatsAppAdapter extends EventEmitter {
         } else if (connection === 'open') {
           this.isConnected = true;
           this.emit('status', { status: 'connected' });
-          this.emit('contacts_updated', Array.from(this.contacts.values()));
+          this.emit('contacts_updated', this.getRecentChats());
 
-          // Fetch all groups actively upon connect
+          // Populate group metadata, but DO NOT overwrite timestamp with Date.now()!
           setTimeout(async () => {
             try {
               if (this.sock && this.sock.groupFetchAllParticipating) {
@@ -282,12 +298,13 @@ class WhatsAppAdapter extends EventEmitter {
                     this.contacts.set(id, {
                       ...existing,
                       jid: id,
-                      name: meta.subject || `Group (${id.slice(0, 8)})`,
-                      timestamp: existing.timestamp || Date.now()
+                      name: meta.subject || existing.name || `Grup (${id.slice(0, 8)})`,
+                      timestamp: existing.timestamp || 0, // KEEP 0 if no message, never use Date.now()!
+                      isGroup: true
                     });
                   }
                   this.saveContactsCache();
-                  this.emit('contacts_updated', Array.from(this.contacts.values()));
+                  this.emit('contacts_updated', this.getRecentChats());
                 }
               }
             } catch {
@@ -299,6 +316,7 @@ class WhatsAppAdapter extends EventEmitter {
 
       // Synchronize full chat & message history from WhatsApp
       this.sock.ev.on('messaging-history.set', ({ chats, contacts, messages }) => {
+        // 1. Address book contacts
         if (contacts && contacts.length) {
           for (const c of contacts) {
             if (!c.id) continue;
@@ -308,28 +326,32 @@ class WhatsAppAdapter extends EventEmitter {
               this.contacts.set(c.id, {
                 ...existing,
                 jid: c.id,
-                name
+                name,
+                isGroup: c.id.endsWith('@g.us')
               });
             }
           }
         }
 
+        // 2. Chats (both private and group)
         if (chats && chats.length) {
           for (const ch of chats) {
             if (!ch.id) continue;
             const existing = this.contacts.get(ch.id) || {};
+            const isGroup = ch.id.endsWith('@g.us');
             const resolvedName = ch.name || existing.name || ch.id.split('@')[0];
-            const timestamp = Number(ch.conversationTimestamp) * 1000 || existing.timestamp || Date.now();
+            const timestamp = Number(ch.conversationTimestamp) * 1000 || existing.timestamp || 0;
             this.contacts.set(ch.id, {
               ...existing,
               jid: ch.id,
               name: resolvedName,
-              timestamp
+              timestamp,
+              isGroup
             });
           }
         }
 
-        // Unpack all historical messages synced from WhatsApp!
+        // 3. Historical messages
         if (messages && messages.length) {
           for (const msg of messages) {
             if (!msg.message) continue;
@@ -340,14 +362,30 @@ class WhatsAppAdapter extends EventEmitter {
             const rawSender = msg.pushName || jid.split('@')[0];
             const senderName = isMe ? 'You' : rawSender;
             const text = extractMessageText(msg.message);
-            const timestamp = Number(msg.messageTimestamp) * 1000 || Date.now();
+            const timestamp = Number(msg.messageTimestamp) * 1000 || 0;
+
+            const isGroup = jid.endsWith('@g.us');
+            const existing = this.contacts.get(jid) || {};
+            const resolvedName = isGroup
+              ? (existing.name || `Grup (${jid.slice(0, 8)})`)
+              : (existing.name || (senderName !== 'You' ? senderName : jid.split('@')[0]));
+
+            this.contacts.set(jid, {
+              ...existing,
+              jid,
+              name: resolvedName,
+              lastMessage: text,
+              timestamp: Math.max(existing.timestamp || 0, timestamp),
+              isGroup
+            });
 
             this.storeMessage({
               source: 'whatsapp',
               channelId: jid,
-              channelName: this.contacts.get(jid)?.name || senderName,
+              channelName: resolvedName,
               sender: senderName,
               isMe,
+              isGroup,
               text,
               timestamp
             });
@@ -355,28 +393,30 @@ class WhatsAppAdapter extends EventEmitter {
         }
 
         this.saveContactsCache();
-        this.emit('contacts_updated', Array.from(this.contacts.values()));
+        this.emit('contacts_updated', this.getRecentChats());
       });
 
-      // Handle chat additions
+      // Handle chat additions/updates
       this.sock.ev.on('chats.upsert', (newChats) => {
         for (const ch of newChats) {
           if (!ch.id) continue;
           const existing = this.contacts.get(ch.id) || {};
+          const isGroup = ch.id.endsWith('@g.us');
           const resolvedName = ch.name || existing.name || ch.id.split('@')[0];
-          const timestamp = Number(ch.conversationTimestamp) * 1000 || existing.timestamp || Date.now();
+          const timestamp = Number(ch.conversationTimestamp) * 1000 || existing.timestamp || 0;
           this.contacts.set(ch.id, {
             ...existing,
             jid: ch.id,
             name: resolvedName,
-            timestamp
+            timestamp,
+            isGroup
           });
         }
         this.saveContactsCache();
-        this.emit('contacts_updated', Array.from(this.contacts.values()));
+        this.emit('contacts_updated', this.getRecentChats());
       });
 
-      // Handle incoming messages
+      // Incoming messages
       this.sock.ev.on('messages.upsert', (m) => {
         if (!m.messages || !m.messages.length) return;
 
@@ -396,7 +436,7 @@ class WhatsAppAdapter extends EventEmitter {
           const isGroup = jid.endsWith('@g.us');
           const existingContact = this.contacts.get(jid) || {};
           const chatDisplayName = isGroup
-            ? (existingContact.name || `grp-${jid.slice(0, 8)}`)
+            ? (existingContact.name || `Grup (${jid.slice(0, 8)})`)
             : (existingContact.name || (senderName !== 'You' ? senderName : jid.split('@')[0]));
 
           const packet = {
@@ -412,6 +452,7 @@ class WhatsAppAdapter extends EventEmitter {
 
           this.storeMessage(packet);
           this.emit('message', packet);
+          this.emit('contacts_updated', this.getRecentChats());
         }
       });
 
@@ -424,11 +465,12 @@ class WhatsAppAdapter extends EventEmitter {
           this.contacts.set(c.id, {
             ...existing,
             jid: c.id,
-            name: resolvedName
+            name: resolvedName,
+            isGroup: c.id.endsWith('@g.us')
           });
         }
         this.saveContactsCache();
-        this.emit('contacts_updated', Array.from(this.contacts.values()));
+        this.emit('contacts_updated', this.getRecentChats());
       });
 
       this.sock.ev.on('groups.update', (updates) => {
@@ -438,12 +480,13 @@ class WhatsAppAdapter extends EventEmitter {
             this.contacts.set(g.id, {
               ...existing,
               jid: g.id,
-              name: g.subject
+              name: g.subject,
+              isGroup: true
             });
           }
         }
         this.saveContactsCache();
-        this.emit('contacts_updated', Array.from(this.contacts.values()));
+        this.emit('contacts_updated', this.getRecentChats());
       });
 
     } catch (err) {
@@ -469,11 +512,14 @@ class WhatsAppAdapter extends EventEmitter {
     };
 
     this.storeMessage(msgPacket);
-    this.emit('contacts_updated', Array.from(this.contacts.values()));
+    this.emit('contacts_updated', this.getRecentChats());
   }
 
   getRecentChats() {
-    return Array.from(this.contacts.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Strictly sort by timestamp descending (newest chat activity at the very top)
+    return Array.from(this.contacts.values())
+      .filter((c) => c.timestamp && c.timestamp > 0)
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   }
 }
 

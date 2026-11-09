@@ -59,14 +59,17 @@ class ChatHub extends EventEmitter {
   refreshChannels() {
     const list = [];
 
-    // WhatsApp chats
+    // WhatsApp chats (strictly sorted by newest activity first)
     const waChats = this.wa.getRecentChats();
     for (const chat of waChats) {
+      const isGrp = chat.isGroup || chat.jid.endsWith('@g.us');
+      const tag = isGrp ? '[Grup]' : '';
       list.push({
         id: `wa:${chat.jid}`,
         platform: 'whatsapp',
         rawId: chat.jid,
-        displayName: `svc-wa/${chat.name || chat.jid.split('@')[0]}`,
+        isGroup: isGrp,
+        displayName: `${tag ? tag + ' ' : ''}${chat.name || chat.jid.split('@')[0]}`,
         timestamp: chat.timestamp || 0
       });
     }
@@ -78,10 +81,14 @@ class ChatHub extends EventEmitter {
         id: `dc:${ch.id}`,
         platform: 'discord',
         rawId: ch.id,
-        displayName: `svc-dc/${ch.name}`,
+        isGroup: true,
+        displayName: `[DC] ${ch.name}`,
         timestamp: 0
       });
     }
+
+    // Sort strictly from newest timestamp to oldest
+    list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     this.channels = list;
 
