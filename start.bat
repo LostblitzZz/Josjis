@@ -27,10 +27,18 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo [OK] Josjis.exe siap dijalankan!
 
-echo [2/3] Memulai Service Backend Hub (Node.js)...
+echo [2/3] Memeriksa sesi WhatsApp...
+if not exist "auth\wa_session\creds.json" (
+    echo.
+    echo ====================================================================
+    echo  [!] WhatsApp belum ditautkan. Menyiapkan QR Code...
+    echo ====================================================================
+    node auth-wa.js
+)
+
+echo [3/3] Memulai Service Backend Hub (Node.js)...
 start /B node index.js
 
-echo [3/3] Menunggu backend online...
 timeout /t 2 /nobreak >nul
 
 echo [LAUNCH] Membuka Josjis Native Desktop...

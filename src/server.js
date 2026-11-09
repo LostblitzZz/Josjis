@@ -16,6 +16,7 @@ function startWebServer(hub, port = 3821) {
     res.json({
       status: 'running',
       waConnected: hub.wa ? hub.wa.isConnected : false,
+      qr: hub.lastQR || null,
       discordConnected: hub.discord ? hub.discord.isConnected : false,
       activeChannel: hub.activeChannel,
       channels: hub.channels || []

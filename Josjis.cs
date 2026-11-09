@@ -277,6 +277,9 @@ namespace Josjis
         private Label lblPlatTitle;
         private Label lblPlatSubtitle;
         private Panel cardWA;
+        private Label lblWAStatus;
+        private Button btnWAAction;
+        private bool isWAConnected = false;
         private Panel cardDC;
         private Panel cardTT;
 
@@ -423,14 +426,48 @@ namespace Josjis
             lblPlatSubtitle.AutoSize = true;
 
             // Card 1: WhatsApp
-            cardWA = CreatePlatformCard(
-                "[ WhatsApp Desktop ]",
-                "Status: Online & Ready (Baileys Multi-Device)",
-                "Akses langsung chat personal, grup, pesan terkini WhatsApp.\nTersinkronisasi realtime dan mendukung pengiriman nomor langsung.",
-                clrAccent,
-                "Buka WhatsApp Chat",
-                (s, e) => ShowWhatsAppView()
-            );
+            cardWA = new Panel();
+            cardWA.Width = 670;
+            cardWA.Height = 115;
+            cardWA.BackColor = clrHeader;
+
+            Label lblWATitle = new Label();
+            lblWATitle.Text = "[ WhatsApp Desktop ]";
+            lblWATitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+            lblWATitle.ForeColor = clrAccent;
+            lblWATitle.Location = new Point(14, 12);
+            lblWATitle.AutoSize = true;
+
+            lblWAStatus = new Label();
+            lblWAStatus.Text = "Status: Memeriksa status koneksi...";
+            lblWAStatus.Font = new Font("Segoe UI", 8.5f, FontStyle.Italic);
+            lblWAStatus.ForeColor = clrTextMuted;
+            lblWAStatus.Location = new Point(16, 36);
+            lblWAStatus.AutoSize = true;
+
+            Label lblWADesc = new Label();
+            lblWADesc.Text = "Akses langsung chat personal, grup, pesan terkini WhatsApp.\nTersinkronisasi realtime dan mendukung pengiriman nomor langsung.";
+            lblWADesc.Font = new Font("Segoe UI", 9f);
+            lblWADesc.ForeColor = clrTextPrimary;
+            lblWADesc.Location = new Point(16, 58);
+            lblWADesc.AutoSize = true;
+
+            btnWAAction = new Button();
+            btnWAAction.Text = "Buka WhatsApp Chat";
+            btnWAAction.Width = 155;
+            btnWAAction.Height = 32;
+            btnWAAction.Location = new Point(495, 40);
+            btnWAAction.BackColor = clrAccent;
+            btnWAAction.ForeColor = Color.White;
+            btnWAAction.FlatStyle = FlatStyle.Flat;
+            btnWAAction.FlatAppearance.BorderSize = 0;
+            btnWAAction.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btnWAAction.Click += (s, e) => OnWAActionClick();
+
+            cardWA.Controls.Add(lblWATitle);
+            cardWA.Controls.Add(lblWAStatus);
+            cardWA.Controls.Add(lblWADesc);
+            cardWA.Controls.Add(btnWAAction);
             cardWA.Location = new Point(25, 85);
 
             // Card 2: Discord
@@ -745,6 +782,29 @@ namespace Josjis
             TriggerSync();
         }
 
+        private void OnWAActionClick()
+        {
+            if (isWAConnected)
+            {
+                ShowWhatsAppView();
+            }
+            else
+            {
+                try
+                {
+                    System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo();
+                    psi.FileName = "cmd.exe";
+                    psi.Arguments = "/c start cmd.exe /k \"reauth.bat\"";
+                    psi.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                    System.Diagnostics.Process.Start(psi);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Silakan jalankan file reauth.bat di folder aplikasi untuk scan QR Code:\n" + ex.Message);
+                }
+            }
+        }
+
         private void ToggleMiniMode()
         {
             pnlContacts.Visible = !pnlContacts.Visible;
@@ -771,7 +831,17 @@ namespace Josjis
             ThreadPool.QueueUserWorkItem(delegate {
                 try
                 {
-                    // 1. Fetch Channels
+                    // 1. Fetch Status
+                    bool freshWAConnected = false;
+                    try
+                    {
+                        string jsonStatus = HttpGet(API_URL + "/api/status");
+                        JsonValue statusObj = MiniJson.Parse(jsonStatus);
+                        freshWAConnected = statusObj["waConnected"].AsBool();
+                    }
+                    catch { }
+
+                    // 2. Fetch Channels
                     string jsonChannels = HttpGet(API_URL + "/api/channels");
                     JsonValue parsed = MiniJson.Parse(jsonChannels);
                     List<ChannelItem> freshList = new List<ChannelItem>();
@@ -789,7 +859,7 @@ namespace Josjis
                         });
                     }
 
-                    // 2. Fetch Active Channel Messages
+                    // 3. Fetch Active Channel Messages
                     string activeRawId = "";
                     if (activeChannel != null) activeRawId = activeChannel.RawId;
 
@@ -812,8 +882,27 @@ namespace Josjis
                         });
                     }
 
-                    // 3. Update UI on Main Thread
+                    // 4. Update UI on Main Thread
                     this.BeginInvoke((MethodInvoker)delegate {
+                        isWAConnected = freshWAConnected;
+                        if (lblWAStatus != null && btnWAAction != null)
+                        {
+                            if (isWAConnected)
+                            {
+                                lblWAStatus.Text = "Status: ● Terhubung & Online (Baileys Engine)";
+                                lblWAStatus.ForeColor = clrAccent;
+                                btnWAAction.Text = "Buka WhatsApp Chat";
+                                btnWAAction.BackColor = clrAccent;
+                            }
+                            else
+                            {
+                                lblWAStatus.Text = "Status: ● Belum Tertaut (Scan QR Diperlukan)";
+                                lblWAStatus.ForeColor = Color.FromArgb(241, 196, 15);
+                                btnWAAction.Text = "⚡ Scan QR Code";
+                                btnWAAction.BackColor = Color.FromArgb(230, 126, 34);
+                            }
+                        }
+
                         UpdateChannelsUI(freshList);
                         UpdateMessagesUI(freshMsgs);
                         isSyncing = false;
@@ -828,9 +917,15 @@ namespace Josjis
 
         private void UpdateChannelsUI(List<ChannelItem> freshList)
         {
+            if (!isWAConnected)
+            {
+                lblContactCount.Text = "WhatsApp belum tertaut! Klik Menu Platform -> Scan QR.";
+                return;
+            }
+
             if (freshList == null || freshList.Count == 0)
             {
-                lblContactCount.Text = "0 kontak terdeteksi";
+                lblContactCount.Text = "0 kontak terdeteksi (klik Sync atau nomor baru)";
                 return;
             }
 

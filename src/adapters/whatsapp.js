@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const path = require('path');
 const fs = require('fs');
@@ -264,13 +264,20 @@ class WhatsAppAdapter extends EventEmitter {
 
   async start() {
     try {
+      if (this.sock) {
+        try { this.sock.end(); } catch {}
+        this.sock = null;
+      }
+
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
+      const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1043857760] }));
 
       this.sock = makeWASocket({
+        version,
         auth: state,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: ['Windows', 'Desktop', '10.0.22631'],
+        browser: Browsers.windows('Chrome'),
         syncFullHistory: true
       });
 

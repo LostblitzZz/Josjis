@@ -14,6 +14,7 @@ class ChatHub extends EventEmitter {
     this.channels = []; // unified list of { id, displayName, platform, rawId }
     this.activeChannel = null;
     this.messageHistory = [];
+    this.lastQR = null;
   }
 
   async init() {
@@ -24,8 +25,16 @@ class ChatHub extends EventEmitter {
   }
 
   setupListeners() {
-    this.wa.on('status', (st) => this.emit('platform_status', { platform: 'whatsapp', ...st }));
-    this.wa.on('qr', (qr) => this.emit('wa_qr', qr));
+    this.wa.on('status', (st) => {
+      if (st.status === 'connected') {
+        this.lastQR = null;
+      }
+      this.emit('platform_status', { platform: 'whatsapp', ...st });
+    });
+    this.wa.on('qr', (qr) => {
+      this.lastQR = qr;
+      this.emit('wa_qr', qr);
+    });
     this.wa.on('message', (msg) => this.handleIncomingMessage(msg));
     this.wa.on('contacts_updated', () => this.refreshChannels());
 
