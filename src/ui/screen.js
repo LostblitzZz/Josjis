@@ -250,7 +250,6 @@ function createUI(hub) {
   }
 
   function focusInput() {
-    channelList.blur();
     inputBox.focus();
     startInputLoop();
     screen.render();
@@ -261,7 +260,6 @@ function createUI(hub) {
       isReadingInput = false;
       inputBox.cancel();
     }
-    inputBox.blur();
     channelList.focus();
     screen.render();
   }
