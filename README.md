@@ -1,46 +1,42 @@
-# Josjis Desktop - Native Stealth Multi-Chat Workspace
+# Josjis Desktop - Stealth Multi-Chat Workspace
 
-Aplikasi percakapan stealth desktop **100% Native Windows (Josjis.exe)** tanpa membuka browser (Edge / Chrome) dan tanpa framework berat (Electron). 
+Aplikasi percakapan desktop **100% Native Windows (`Josjis.exe`)** yang ringan, compact, dan dilengkapi dengan **Auto-Dimming Ghost Mode (OS-Level Transparency)** serta **100% Akses Seluruh Riwayat Chat & Kontak**.
 
 ---
 
 ## ⚡ Fitur Utama
 
-1. **100% Native Windows GUI (`Josjis.exe`):**  
-   Dibuat dan dikompilasi langsung menggunakan compiler bawaan Windows (`csc.exe` dari Microsoft .NET Framework). Ukuran sangat kecil, startup instan (< 1 detik), memori ringan.
-2. **Stealth Auto-Dimming (Ghost Mode):**  
-   Saat kursor mouse menjauh atau tidak aktif, jendela otomatis meredup transparan (default **20% opacity**). Begitu mouse digerakkan ke dalam jendela, aplikasi seketika kembali terang (100% opacity). Tingkat ghost opacity bisa diatur dengan slider (10% - 60%).
-3. **Platform Hub Selector:**  
-   Dashboard awal dengan pilihan:
-   - **[WhatsApp]**: Terhubung langsung ke WhatsApp Multi-Device (personal chat, grup, bubble messages).
-   - **[Discord]**: Bot gateway standby (masukkan token di `.env`).
-   - **[TikTok DM]**: Headless direct message standby (sesi cookie di `auth/tiktok_cookies.json`).
+1. **100% Seluruh Chat & Kontak Lengkap:**  
+   Menggunakan engine web resmi dalam mode aplikasi mandiri (*Borderleess App Window*). Seluruh riwayat chat lama bertahun-tahun, kontak dengan nama dari buku telepon ponsel, media, foto, dan voice note tersinkronisasi 100%.
+2. **Stealth Auto-Dimming (Ghost Mode Tingkat OS):**  
+   Saat kursor mouse keluar dari jendela chat, jendela otomatis memudar halus menjadi transparan (default **20% opacity**). Saat mouse menyentuh jendela, seketika kembali terang (100%).
+3. **Pilihan Platform di Awal (Dashboard Menu):**  
+   * **[WhatsApp Desktop]**: Chat pribadi, grup, voice note, dan media lengkap.
+   * **[Discord Web]**: Server channels dan direct messages.
+   * **[TikTok DM]**: Direct messages dan percakapan TikTok.
 4. **Panic Minimize (`Esc`):**  
-   Tekan tombol `Esc` kapan saja untuk langsung me-minimize jendela ke taskbar.
-5. **Mode Super Compact (`Mini`):**  
-   Klik tombol **📐 Mini** atau perkecil jendela hingga 380px untuk menyembunyikan panel kontak dan hanya menyisakan jendela chat aktif di pojok monitor.
-6. **Mulai Chat ke Nomor Apa Saja:**  
-   Gunakan tombol **+ Nomor Baru** untuk langsung memulai obrolan dengan nomor HP baru tanpa harus menyimpan nomor di kontak ponsel terlebih dahulu.
+   Tekan tombol **`Esc`** kapan saja saat jendela chat aktif untuk langsung menyembunyikannya ke taskbar seketika.
+5. **Ukuran Compact & Resizable:**  
+   Ukuran jendela ramping (440x680), bisa digeser ke sudut monitor, dan mendukung Always on Top.
+6. **0 MB Install / Tanpa Node Server:**  
+   Dikompilasi langsung menjadi file `.exe` mandiri menggunakan compiler bawaan Windows (`csc.exe`).
 
 ---
 
 ## 🚀 Cara Menjalankan di Windows
 
-1. Jalankan update di direktori `Josjis`:
-   ```bat
-   git checkout . && git pull origin main
-   ```
-2. Jalankan:
-   ```bat
-   start.bat
-   ```
-   Script otomatis mengompilasi `Josjis.cs` menjadi `Josjis.exe`, menyalakan backend di latar belakang, dan meluncurkan aplikasi native.
+Cukup buka terminal di folder proyek (`D:\Porto Project\Josjis2\Josjis`):
 
----
+```bat
+git checkout . && git pull origin main
+```
 
-## 📱 Tentang Riwayat Chat WhatsApp (Full History Sync)
+Lalu jalankan:
+```bat
+start.bat
+```
 
-WhatsApp Multi-Device membagikan riwayat chat saat proses pairing awal (scan QR).
-- Jika ingin menyinkronkan seluruh riwayat lama dari HP:
-  Jalankan `reauth.bat` (atau `npm run reauth`), lalu scan QR Code. WhatsApp akan mengirimkan paket sinkronisasi riwayat pesan dan kontak lengkap.
-- Kontak yang baru atau belum ada di list bisa langsung dibuka menggunakan tombol **+ Nomor Baru**.
+1. Jendela **Josjis Desktop Hub** akan terbuka.
+2. Klik tombol **`🚀 Buka WhatsApp`** (atau Discord / TikTok).
+3. Login WhatsApp sekali lewat scan QR di jendela tersebut (sesi tersimpan permanen di profil lokal).
+4. Selesai! Semua chatmu ada lengkap dan auto-opacity stealth langsung aktif.

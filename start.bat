@@ -12,34 +12,21 @@ if not exist "%CSC%" (
 )
 
 if not exist "%CSC%" (
-    echo [ERROR] csc.exe compiler tidak ditemukan di C:\Windows\Microsoft.NET!
+    echo [ERROR] Compiler C# (csc.exe) tidak ditemukan di C:\Windows\Microsoft.NET!
     echo Pastikan .NET Framework terinstal di Windows Anda.
     pause
     exit /b 1
 )
 
-echo [1/3] Mengompilasi Josjis.exe dari Josjis.cs...
+echo [1/2] Mengompilasi Josjis.exe dari Josjis.cs...
 "%CSC%" /target:winexe /optimize+ /out:Josjis.exe Josjis.cs
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Gagal kompilasi Josjis.cs!
+    echo [ERROR] Gagal mengompilasi Josjis.cs!
     pause
     exit /b 1
 )
-echo [OK] Josjis.exe siap dijalankan!
+echo [OK] Josjis.exe siap digunakan!
 
-echo [2/3] Memeriksa sesi WhatsApp...
-if not exist "auth\wa_session\creds.json" (
-    echo.
-    echo ====================================================================
-    echo  [!] WhatsApp belum ditautkan. Menyiapkan QR Code...
-    echo ====================================================================
-    node auth-wa.js
-)
-
-echo [3/3] Memulai Service Backend Hub (Node.js)...
-start /B node index.js
-
-timeout /t 2 /nobreak >nul
-
-echo [LAUNCH] Membuka Josjis Native Desktop...
+echo [2/2] Meluncurkan Josjis Native Desktop Hub...
 start "" Josjis.exe
+exit /b 0

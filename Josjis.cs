@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.IO;
-using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -11,1302 +10,656 @@ using System.Windows.Forms;
 namespace Josjis
 {
     // =========================================================================
-    // 1. Zero-Dependency Lightweight JSON Parser (C# 5.0 compatible)
+    // Win32 API Definitions for OS-Level Stealth Transparency & Hotkeys
     // =========================================================================
-    public class JsonValue
+    internal static class NativeMethods
     {
-        public enum JsonType { Null, Boolean, Number, String, Array, Object }
-        public JsonType Type;
-        public bool BoolVal;
-        public double NumVal;
-        public string StrVal;
-        public List<JsonValue> ArrVal;
-        public Dictionary<string, JsonValue> ObjVal;
+        public const int GWL_EXSTYLE = -20;
+        public const int WS_EX_LAYERED = 0x80000;
+        public const uint LWA_ALPHA = 0x2;
+        public const int SW_MINIMIZE = 6;
+        public const int SW_RESTORE = 9;
+        public const int VK_ESCAPE = 0x1B;
 
-        public JsonValue(JsonType type)
+        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        public const uint SWP_NOMOVE = 0x0002;
+        public const uint SWP_NOSIZE = 0x0001;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
         {
-            Type = type;
-            if (type == JsonType.Array) ArrVal = new List<JsonValue>();
-            if (type == JsonType.Object) ObjVal = new Dictionary<string, JsonValue>();
+            public int X;
+            public int Y;
         }
 
-        public string AsString() { return StrVal != null ? StrVal : ""; }
-        public long AsLong() { return (long)NumVal; }
-        public int AsInt() { return (int)NumVal; }
-        public bool AsBool() { return BoolVal; }
-        public List<JsonValue> AsList() { return ArrVal != null ? ArrVal : new List<JsonValue>(); }
-
-        public JsonValue this[string key]
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
         {
-            get
-            {
-                if (ObjVal != null && ObjVal.ContainsKey(key)) return ObjVal[key];
-                return new JsonValue(JsonType.Null);
-            }
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
         }
 
-        public JsonValue this[int index]
-        {
-            get
-            {
-                if (ArrVal != null && index >= 0 && index < ArrVal.Count) return ArrVal[index];
-                return new JsonValue(JsonType.Null);
-            }
-        }
-    }
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
-    public static class MiniJson
-    {
-        public static JsonValue Parse(string json)
-        {
-            if (string.IsNullOrEmpty(json)) return new JsonValue(JsonValue.JsonType.Null);
-            int idx = 0;
-            return ParseVal(json, ref idx);
-        }
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
-        private static void SkipWs(string s, ref int idx)
-        {
-            while (idx < s.Length && (s[idx] == ' ' || s[idx] == '\t' || s[idx] == '\r' || s[idx] == '\n'))
-                idx++;
-        }
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
-        private static JsonValue ParseVal(string s, ref int idx)
-        {
-            SkipWs(s, ref idx);
-            if (idx >= s.Length) return new JsonValue(JsonValue.JsonType.Null);
-            char c = s[idx];
-            if (c == '{') return ParseObj(s, ref idx);
-            if (c == '[') return ParseArr(s, ref idx);
-            if (c == '"') return ParseStr(s, ref idx);
-            if (c == 't' || c == 'f') return ParseBool(s, ref idx);
-            if (c == 'n') return ParseNull(s, ref idx);
-            return ParseNum(s, ref idx);
-        }
+        [DllImport("user32.dll")]
+        public static extern bool GetCursorPos(out POINT lpPoint);
 
-        private static JsonValue ParseObj(string s, ref int idx)
-        {
-            idx++; // skip '{'
-            JsonValue obj = new JsonValue(JsonValue.JsonType.Object);
-            SkipWs(s, ref idx);
-            if (idx < s.Length && s[idx] == '}') { idx++; return obj; }
+        [DllImport("user32.dll")]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
-            while (idx < s.Length)
-            {
-                SkipWs(s, ref idx);
-                string key = ParseStr(s, ref idx).AsString();
-                SkipWs(s, ref idx);
-                if (idx < s.Length && s[idx] == ':') idx++;
-                JsonValue val = ParseVal(s, ref idx);
-                obj.ObjVal[key] = val;
-                SkipWs(s, ref idx);
-                if (idx < s.Length && s[idx] == ',') { idx++; continue; }
-                if (idx < s.Length && s[idx] == '}') { idx++; break; }
-            }
-            return obj;
-        }
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
 
-        private static JsonValue ParseArr(string s, ref int idx)
-        {
-            idx++; // skip '['
-            JsonValue arr = new JsonValue(JsonValue.JsonType.Array);
-            SkipWs(s, ref idx);
-            if (idx < s.Length && s[idx] == ']') { idx++; return arr; }
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
 
-            while (idx < s.Length)
-            {
-                SkipWs(s, ref idx);
-                arr.ArrVal.Add(ParseVal(s, ref idx));
-                SkipWs(s, ref idx);
-                if (idx < s.Length && s[idx] == ',') { idx++; continue; }
-                if (idx < s.Length && s[idx] == ']') { idx++; break; }
-            }
-            return arr;
-        }
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-        private static JsonValue ParseStr(string s, ref int idx)
-        {
-            idx++; // skip '"'
-            StringBuilder sb = new StringBuilder();
-            while (idx < s.Length)
-            {
-                char c = s[idx++];
-                if (c == '"') break;
-                if (c == '\\' && idx < s.Length)
-                {
-                    char esc = s[idx++];
-                    if (esc == 'n') sb.Append('\n');
-                    else if (esc == 'r') sb.Append('\r');
-                    else if (esc == 't') sb.Append('\t');
-                    else if (esc == '"') sb.Append('"');
-                    else if (esc == '\\') sb.Append('\\');
-                    else if (esc == 'u' && idx + 4 <= s.Length)
-                    {
-                        string hex = s.Substring(idx, 4);
-                        idx += 4;
-                        try { sb.Append((char)Convert.ToInt32(hex, 16)); } catch { }
-                    }
-                    else sb.Append(esc);
-                }
-                else
-                {
-                    sb.Append(c);
-                }
-            }
-            JsonValue res = new JsonValue(JsonValue.JsonType.String);
-            res.StrVal = sb.ToString();
-            return res;
-        }
+        [DllImport("user32.dll")]
+        public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
-        private static JsonValue ParseBool(string s, ref int idx)
-        {
-            JsonValue res = new JsonValue(JsonValue.JsonType.Boolean);
-            if (s.IndexOf("true", idx) == idx) { res.BoolVal = true; idx += 4; }
-            else if (s.IndexOf("false", idx) == idx) { res.BoolVal = false; idx += 5; }
-            return res;
-        }
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
 
-        private static JsonValue ParseNull(string s, ref int idx)
-        {
-            if (s.IndexOf("null", idx) == idx) idx += 4;
-            return new JsonValue(JsonValue.JsonType.Null);
-        }
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
-        private static JsonValue ParseNum(string s, ref int idx)
-        {
-            int start = idx;
-            if (idx < s.Length && s[idx] == '-') idx++;
-            while (idx < s.Length && ((s[idx] >= '0' && s[idx] <= '9') || s[idx] == '.' || s[idx] == 'e' || s[idx] == 'E' || s[idx] == '+' || s[idx] == '-'))
-                idx++;
-            string numStr = s.Substring(start, idx - start);
-            double d = 0;
-            double.TryParse(numStr, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out d);
-            JsonValue res = new JsonValue(JsonValue.JsonType.Number);
-            res.NumVal = d;
-            return res;
-        }
+        [DllImport("user32.dll")]
+        public static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
     }
 
     // =========================================================================
-    // 2. Data Models
+    // Active Platform Session Controller
     // =========================================================================
-    public class ChannelItem
+    public class PlatformSession
     {
-        public string Id { get; set; }
-        public string RawId { get; set; }
-        public string DisplayName { get; set; }
-        public string Platform { get; set; }
-        public bool IsGroup { get; set; }
-        public long Timestamp { get; set; }
-        public string LastSnippet { get; set; }
-
-        public override string ToString()
-        {
-            return DisplayName;
-        }
-    }
-
-    public class MessageItem
-    {
-        public string Source { get; set; }
-        public string ChannelId { get; set; }
-        public string ChannelName { get; set; }
-        public string Sender { get; set; }
-        public bool IsMe { get; set; }
-        public bool IsGroup { get; set; }
-        public string Text { get; set; }
-        public long Timestamp { get; set; }
+        public string Name { get; set; }
+        public string Url { get; set; }
+        public Process ProcessInstance { get; set; }
+        public IntPtr MainWindowHandle { get; set; }
+        public Thread MonitorThread { get; set; }
+        public bool IsRunning { get; set; }
     }
 
     // =========================================================================
-    // 3. Flicker-Free Double Buffered UI Controls
-    // =========================================================================
-    public class DoubleBufferedListBox : ListBox
-    {
-        public DoubleBufferedListBox()
-        {
-            this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            Region r = new Region(e.ClipRectangle);
-            e.Graphics.FillRegion(new SolidBrush(this.BackColor), r);
-            if (this.Items.Count > 0)
-            {
-                for (int i = 0; i < this.Items.Count; i++)
-                {
-                    Rectangle rect = this.GetItemRectangle(i);
-                    if (e.ClipRectangle.IntersectsWith(rect))
-                    {
-                        DrawItemState state = (this.SelectedIndex == i) ? DrawItemState.Selected : DrawItemState.Default;
-                        OnDrawItem(new DrawItemEventArgs(e.Graphics, this.Font, rect, i, state, this.ForeColor, this.BackColor));
-                    }
-                }
-            }
-            base.OnPaint(e);
-        }
-    }
-
-    // =========================================================================
-    // 4. Main Desktop Application Form
+    // Main Josjis Desktop Hub Application
     // =========================================================================
     public class MainForm : Form
     {
-        private const string API_URL = "http://127.0.0.1:3821";
+        // Colors (WhatsApp & Josjis Stealth Theme)
+        private Color clrBg = Color.FromArgb(17, 27, 33);         // #111b21
+        private Color clrHeader = Color.FromArgb(32, 44, 51);     // #202c33
+        private Color clrCard = Color.FromArgb(24, 34, 41);       // #182229
+        private Color clrAccent = Color.FromArgb(0, 168, 132);    // #00a884
+        private Color clrDiscord = Color.FromArgb(88, 101, 242);  // #5865f2
+        private Color clrTikTok = Color.FromArgb(254, 44, 85);    // #fe2c55
+        private Color clrText = Color.FromArgb(233, 237, 239);    // #e9edef
+        private Color clrMuted = Color.FromArgb(134, 150, 160);   // #8696a0
 
-        // Layout Containers
-        private Panel pnlTopBar;
-        private Panel pnlPlatforms;
-        private Panel pnlWhatsApp;
-        private Panel pnlContacts;
-        private Panel pnlChat;
-        private Panel pnlChatHeader;
-        private Panel pnlInput;
-
-        // Top Bar Controls
-        private Label lblAppTitle;
-        private Button btnPlatformMenu;
-        private Button btnResync;
-        private Button btnMiniToggle;
-        private CheckBox chkTopMost;
-        private Label lblOpacity;
-        private TrackBar trkOpacity;
+        // UI Controls
+        private Panel pnlHeader;
+        private Label lblTitle;
+        private Label lblSubtitle;
         private Label lblPanicHint;
 
-        // Platform Selector Cards
-        private Label lblPlatTitle;
-        private Label lblPlatSubtitle;
+        private Panel pnlBody;
         private Panel cardWA;
-        private Label lblWAStatus;
-        private Button btnWAAction;
-        private bool isWAConnected = false;
         private Panel cardDC;
         private Panel cardTT;
+        private Panel cardSettings;
 
-        // WhatsApp Controls
-        private TextBox txtSearch;
-        private Button btnNewChat;
-        private DoubleBufferedListBox lstContacts;
-        private Label lblContactCount;
+        private TrackBar trkOpacity;
+        private Label lblOpacityVal;
+        private CheckBox chkAutoDim;
+        private CheckBox chkTopMost;
 
-        private Label lblActiveName;
-        private Label lblActiveDetail;
-        private DoubleBufferedListBox lstMessages;
-        private TextBox txtInput;
-        private Button btnSend;
+        private Panel pnlFooter;
+        private Label lblStatus;
+        private NotifyIcon trayIcon;
 
-        // Timers & Stealth State
-        private System.Windows.Forms.Timer tmrStealth;
-        private System.Windows.Forms.Timer tmrSync;
-        private double idleOpacity = 0.20;
-        private bool isSyncing = false;
-
-        // Data caches
-        private List<ChannelItem> allChannels = new List<ChannelItem>();
-        private ChannelItem activeChannel = null;
-        private List<MessageItem> currentMessages = new List<MessageItem>();
-
-        // Styling Colors (WhatsApp Dark & Stealth Theme)
-        private Color clrBgDark = Color.FromArgb(17, 27, 33);      // #111b21
-        private Color clrHeader = Color.FromArgb(32, 44, 51);      // #202c33
-        private Color clrChatBg = Color.FromArgb(11, 20, 26);      // #0b141a
-        private Color clrAccent = Color.FromArgb(0, 168, 132);     // #00a884
-        private Color clrBubbleMe = Color.FromArgb(0, 92, 75);     // #005c4b
-        private Color clrBubbleOther = Color.FromArgb(32, 44, 51);  // #202c33
-        private Color clrTextPrimary = Color.FromArgb(233, 237, 239); // #e9edef
-        private Color clrTextMuted = Color.FromArgb(134, 150, 160);   // #8696a0
-        private Color clrSelected = Color.FromArgb(42, 57, 66);    // #2a3942
+        // Session tracking
+        private PlatformSession activeSession = null;
+        private readonly object sessionLock = new object();
 
         public MainForm()
         {
             InitializeComponent();
-            SetupTimers();
-            TriggerSync();
+            SetupTray();
         }
 
         private void InitializeComponent()
         {
-            this.Text = "Josjis Hub v2.0 - Ghost Workspace";
-            this.Size = new Size(740, 580);
-            this.MinimumSize = new Size(380, 420);
+            this.Text = "Josjis Hub v2.0 - Stealth Desktop Workspace";
+            this.Size = new Size(530, 680);
+            this.MinimumSize = new Size(500, 600);
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.BackColor = clrBgDark;
-            this.ForeColor = clrTextPrimary;
+            this.BackColor = clrBg;
+            this.ForeColor = clrText;
             this.Font = new Font("Segoe UI", 9f);
-            this.KeyPreview = true;
-            this.DoubleBuffered = true;
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+            this.MaximizeBox = false;
 
             // -------------------------------------------------------------
-            // TOP NAVIGATION BAR
+            // HEADER PANEL
             // -------------------------------------------------------------
-            pnlTopBar = new Panel();
-            pnlTopBar.Dock = DockStyle.Top;
-            pnlTopBar.Height = 42;
-            pnlTopBar.BackColor = clrHeader;
+            pnlHeader = new Panel();
+            pnlHeader.Dock = DockStyle.Top;
+            pnlHeader.Height = 65;
+            pnlHeader.BackColor = clrHeader;
 
-            lblAppTitle = new Label();
-            lblAppTitle.Text = "⚡ Josjis";
-            lblAppTitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
-            lblAppTitle.ForeColor = clrAccent;
-            lblAppTitle.Location = new Point(10, 10);
-            lblAppTitle.AutoSize = true;
+            lblTitle = new Label();
+            lblTitle.Text = "⚡ Josjis Stealth Workspace";
+            lblTitle.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
+            lblTitle.ForeColor = clrAccent;
+            lblTitle.Location = new Point(16, 10);
+            lblTitle.AutoSize = true;
 
-            btnPlatformMenu = CreateDarkButton("📁 Platform Hub", 100, 26);
-            btnPlatformMenu.Location = new Point(90, 8);
-            btnPlatformMenu.Click += (s, e) => TogglePlatformSelector();
+            lblSubtitle = new Label();
+            lblSubtitle.Text = "100% riwayat chat & kontak lengkap • Auto-dimming • Tanpa notifikasi mencolok";
+            lblSubtitle.Font = new Font("Segoe UI", 8.5f);
+            lblSubtitle.ForeColor = clrMuted;
+            lblSubtitle.Location = new Point(18, 36);
+            lblSubtitle.AutoSize = true;
 
-            btnResync = CreateDarkButton("🔄 Sync", 65, 26);
-            btnResync.Location = new Point(195, 8);
-            btnResync.Click += (s, e) => OnResyncClick();
+            lblPanicHint = new Label();
+            lblPanicHint.Text = "[Esc] = Panic Hide";
+            lblPanicHint.Font = new Font("Segoe UI", 8.5f, FontStyle.Italic);
+            lblPanicHint.ForeColor = Color.FromArgb(160, 180, 195);
+            lblPanicHint.Location = new Point(395, 14);
+            lblPanicHint.AutoSize = true;
 
-            btnMiniToggle = CreateDarkButton("📐 Mini", 60, 26);
-            btnMiniToggle.Location = new Point(265, 8);
-            btnMiniToggle.Click += (s, e) => ToggleMiniMode();
+            pnlHeader.Controls.Add(lblTitle);
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Controls.Add(lblPanicHint);
 
-            chkTopMost = new CheckBox();
-            chkTopMost.Text = "📌 Pin";
-            chkTopMost.Location = new Point(335, 11);
-            chkTopMost.AutoSize = true;
-            chkTopMost.ForeColor = clrTextMuted;
-            chkTopMost.CheckedChanged += (s, e) => { this.TopMost = chkTopMost.Checked; };
+            // -------------------------------------------------------------
+            // FOOTER PANEL
+            // -------------------------------------------------------------
+            pnlFooter = new Panel();
+            pnlFooter.Dock = DockStyle.Bottom;
+            pnlFooter.Height = 32;
+            pnlFooter.BackColor = clrHeader;
 
-            lblOpacity = new Label();
-            lblOpacity.Text = "Ghost: 20%";
-            lblOpacity.ForeColor = clrTextMuted;
-            lblOpacity.Location = new Point(410, 12);
-            lblOpacity.AutoSize = true;
+            lblStatus = new Label();
+            lblStatus.Text = "Status: Siap digunakan. Pilih platform untuk mulai berinteraksi.";
+            lblStatus.Font = new Font("Segoe UI", 8.5f);
+            lblStatus.ForeColor = clrMuted;
+            lblStatus.Location = new Point(14, 7);
+            lblStatus.AutoSize = true;
+
+            pnlFooter.Controls.Add(lblStatus);
+
+            // -------------------------------------------------------------
+            // BODY CONTAINER (Platform Cards & Settings)
+            // -------------------------------------------------------------
+            pnlBody = new Panel();
+            pnlBody.Dock = DockStyle.Fill;
+            pnlBody.AutoScroll = true;
+            pnlBody.BackColor = clrBg;
+
+            int cardTop = 15;
+
+            // Card 1: WhatsApp
+            cardWA = CreatePlatformCard(
+                "[ WhatsApp Desktop ]",
+                clrAccent,
+                "100% Chat & Kontak Lengkap. Menggunakan engine resmi: riwayat pesan lama, media, dan nama kontak dari ponsel tersinkronisasi penuh.",
+                "🚀 Buka WhatsApp",
+                cardTop,
+                (s, e) => LaunchPlatform("WhatsApp", "https://web.whatsapp.com")
+            );
+            cardTop += 125;
+
+            // Card 2: Discord
+            cardDC = CreatePlatformCard(
+                "[ Discord Web ]",
+                clrDiscord,
+                "Server channels, direct messages, dan grup chat Discord dalam jendela compact stealth tanpa membuka browser utama.",
+                "🚀 Buka Discord",
+                cardTop,
+                (s, e) => LaunchPlatform("Discord", "https://discord.com/app")
+            );
+            cardTop += 125;
+
+            // Card 3: TikTok DM
+            cardTT = CreatePlatformCard(
+                "[ TikTok Direct Messages ]",
+                clrTikTok,
+                "Direct messages dan inbox percakapan TikTok dalam tampilan compact stealth yang bebas gangguan.",
+                "🚀 Buka TikTok",
+                cardTop,
+                (s, e) => LaunchPlatform("TikTok", "https://www.tiktok.com/messages")
+            );
+            cardTop += 125;
+
+            // Settings Card
+            cardSettings = new Panel();
+            cardSettings.Location = new Point(16, cardTop);
+            cardSettings.Width = 480;
+            cardSettings.Height = 145;
+            cardSettings.BackColor = clrCard;
+
+            Label lblSetTitle = new Label();
+            lblSetTitle.Text = "⚙️ Pengaturan Stealth & Ghost Mode";
+            lblSetTitle.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
+            lblSetTitle.ForeColor = clrText;
+            lblSetTitle.Location = new Point(14, 10);
+            lblSetTitle.AutoSize = true;
+
+            lblOpacityVal = new Label();
+            lblOpacityVal.Text = "Ghost Opacity: 20% (Tingkat transparansi saat mouse tidak menyentuh jendela)";
+            lblOpacityVal.Font = new Font("Segoe UI", 8.5f);
+            lblOpacityVal.ForeColor = clrMuted;
+            lblOpacityVal.Location = new Point(16, 34);
+            lblOpacityVal.AutoSize = true;
 
             trkOpacity = new TrackBar();
+            trkOpacity.Location = new Point(12, 54);
+            trkOpacity.Width = 450;
+            trkOpacity.Height = 30;
             trkOpacity.Minimum = 10;
             trkOpacity.Maximum = 60;
             trkOpacity.Value = 20;
             trkOpacity.TickFrequency = 10;
-            trkOpacity.Width = 100;
-            trkOpacity.Height = 26;
-            trkOpacity.Location = new Point(485, 8);
             trkOpacity.ValueChanged += (s, e) => {
-                idleOpacity = trkOpacity.Value / 100.0;
-                lblOpacity.Text = string.Format("Ghost: {0}%", trkOpacity.Value);
+                lblOpacityVal.Text = string.Format("Ghost Opacity: {0}% (Tingkat transparansi saat mouse tidak menyentuh jendela)", trkOpacity.Value);
             };
 
-            lblPanicHint = new Label();
-            lblPanicHint.Text = "[Esc] Hide";
-            lblPanicHint.ForeColor = Color.FromArgb(100, 120, 130);
-            lblPanicHint.Location = new Point(600, 12);
-            lblPanicHint.AutoSize = true;
+            chkAutoDim = new CheckBox();
+            chkAutoDim.Text = "Auto-Dimming aktif (Jendela memudar saat mouse keluar)";
+            chkAutoDim.ForeColor = clrText;
+            chkAutoDim.Location = new Point(16, 88);
+            chkAutoDim.AutoSize = true;
+            chkAutoDim.Checked = true;
 
-            pnlTopBar.Controls.Add(lblAppTitle);
-            pnlTopBar.Controls.Add(btnPlatformMenu);
-            pnlTopBar.Controls.Add(btnResync);
-            pnlTopBar.Controls.Add(btnMiniToggle);
-            pnlTopBar.Controls.Add(chkTopMost);
-            pnlTopBar.Controls.Add(lblOpacity);
-            pnlTopBar.Controls.Add(trkOpacity);
-            pnlTopBar.Controls.Add(lblPanicHint);
+            chkTopMost = new CheckBox();
+            chkTopMost.Text = "Pin di atas layar (Always on Top)";
+            chkTopMost.ForeColor = clrText;
+            chkTopMost.Location = new Point(16, 114);
+            chkTopMost.AutoSize = true;
+            chkTopMost.Checked = true;
 
-            // -------------------------------------------------------------
-            // PLATFORM SELECTOR PANEL (Default Welcome Screen)
-            // -------------------------------------------------------------
-            pnlPlatforms = new Panel();
-            pnlPlatforms.Dock = DockStyle.Fill;
-            pnlPlatforms.BackColor = clrBgDark;
-            pnlPlatforms.AutoScroll = true;
+            cardSettings.Controls.Add(lblSetTitle);
+            cardSettings.Controls.Add(lblOpacityVal);
+            cardSettings.Controls.Add(trkOpacity);
+            cardSettings.Controls.Add(chkAutoDim);
+            cardSettings.Controls.Add(chkTopMost);
 
-            lblPlatTitle = new Label();
-            lblPlatTitle.Text = "Josjis Stealth Multi-Chat Workspace";
-            lblPlatTitle.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
-            lblPlatTitle.ForeColor = clrTextPrimary;
-            lblPlatTitle.Location = new Point(25, 20);
-            lblPlatTitle.AutoSize = true;
+            pnlBody.Controls.Add(cardWA);
+            pnlBody.Controls.Add(cardDC);
+            pnlBody.Controls.Add(cardTT);
+            pnlBody.Controls.Add(cardSettings);
 
-            lblPlatSubtitle = new Label();
-            lblPlatSubtitle.Text = "Aplikasi percakapan stealth native: auto-dimming saat kursor menjauh, resizable, dan bebas notifikasi.";
-            lblPlatSubtitle.ForeColor = clrTextMuted;
-            lblPlatSubtitle.Location = new Point(27, 50);
-            lblPlatSubtitle.AutoSize = true;
-
-            // Card 1: WhatsApp
-            cardWA = new Panel();
-            cardWA.Width = 670;
-            cardWA.Height = 115;
-            cardWA.BackColor = clrHeader;
-
-            Label lblWATitle = new Label();
-            lblWATitle.Text = "[ WhatsApp Desktop ]";
-            lblWATitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
-            lblWATitle.ForeColor = clrAccent;
-            lblWATitle.Location = new Point(14, 12);
-            lblWATitle.AutoSize = true;
-
-            lblWAStatus = new Label();
-            lblWAStatus.Text = "Status: Memeriksa status koneksi...";
-            lblWAStatus.Font = new Font("Segoe UI", 8.5f, FontStyle.Italic);
-            lblWAStatus.ForeColor = clrTextMuted;
-            lblWAStatus.Location = new Point(16, 36);
-            lblWAStatus.AutoSize = true;
-
-            Label lblWADesc = new Label();
-            lblWADesc.Text = "Akses langsung chat personal, grup, pesan terkini WhatsApp.\nTersinkronisasi realtime dan mendukung pengiriman nomor langsung.";
-            lblWADesc.Font = new Font("Segoe UI", 9f);
-            lblWADesc.ForeColor = clrTextPrimary;
-            lblWADesc.Location = new Point(16, 58);
-            lblWADesc.AutoSize = true;
-
-            btnWAAction = new Button();
-            btnWAAction.Text = "Buka WhatsApp Chat";
-            btnWAAction.Width = 155;
-            btnWAAction.Height = 32;
-            btnWAAction.Location = new Point(495, 40);
-            btnWAAction.BackColor = clrAccent;
-            btnWAAction.ForeColor = Color.White;
-            btnWAAction.FlatStyle = FlatStyle.Flat;
-            btnWAAction.FlatAppearance.BorderSize = 0;
-            btnWAAction.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
-            btnWAAction.Click += (s, e) => OnWAActionClick();
-
-            cardWA.Controls.Add(lblWATitle);
-            cardWA.Controls.Add(lblWAStatus);
-            cardWA.Controls.Add(lblWADesc);
-            cardWA.Controls.Add(btnWAAction);
-            cardWA.Location = new Point(25, 85);
-
-            // Card 2: Discord
-            cardDC = CreatePlatformCard(
-                "[ Discord Gateway ]",
-                "Status: Standby (Bot Gateway Mode)",
-                "Adapter bot Discord untuk memantau server & channels.\nMasukkan token bot Discord pada file .env untuk mengaktifkan saluran.",
-                Color.FromArgb(88, 101, 242), // Blurple
-                "Info Discord",
-                (s, e) => MessageBox.Show(
-                    "Konfigurasi Discord:\n\n1. Masukkan DISCORD_TOKEN di file .env\n2. Masukkan ID channel di konfigurasi bot\n3. Restart backend (start.bat)",
-                    "Discord Gateway Standby",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                )
-            );
-            cardDC.Location = new Point(25, 215);
-
-            // Card 3: TikTok DM
-            cardTT = CreatePlatformCard(
-                "[ TikTok Direct Message ]",
-                "Status: Standby (Headless Cookie Session)",
-                "Placeholder adapter TikTok Direct Message.\nMendukung sesi interaksi melalui file cookie headless auth/tiktok_cookies.json.",
-                Color.FromArgb(254, 44, 85), // TikTok Pink
-                "Info TikTok",
-                (s, e) => MessageBox.Show(
-                    "Konfigurasi TikTok DM:\n\n1. Ekspor session cookie TikTok Anda\n2. Simpan di auth/tiktok_cookies.json\n3. Modul standby menunggu aktivasi sesi",
-                    "TikTok DM Standby",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information
-                )
-            );
-            cardTT.Location = new Point(25, 345);
-
-            pnlPlatforms.Controls.Add(lblPlatTitle);
-            pnlPlatforms.Controls.Add(lblPlatSubtitle);
-            pnlPlatforms.Controls.Add(cardWA);
-            pnlPlatforms.Controls.Add(cardDC);
-            pnlPlatforms.Controls.Add(cardTT);
-
-            // -------------------------------------------------------------
-            // WHATSAPP INTERFACE PANEL
-            // -------------------------------------------------------------
-            pnlWhatsApp = new Panel();
-            pnlWhatsApp.Dock = DockStyle.Fill;
-            pnlWhatsApp.BackColor = clrChatBg;
-            pnlWhatsApp.Visible = false;
-
-            // Contacts Left Panel
-            pnlContacts = new Panel();
-            pnlContacts.Dock = DockStyle.Left;
-            pnlContacts.Width = 260;
-            pnlContacts.BackColor = clrBgDark;
-
-            Panel pnlContactTop = new Panel();
-            pnlContactTop.Dock = DockStyle.Top;
-            pnlContactTop.Height = 72;
-            pnlContactTop.BackColor = clrBgDark;
-
-            txtSearch = new TextBox();
-            txtSearch.Location = new Point(8, 8);
-            txtSearch.Width = 244;
-            txtSearch.BackColor = clrHeader;
-            txtSearch.ForeColor = clrTextPrimary;
-            txtSearch.BorderStyle = BorderStyle.FixedSingle;
-            txtSearch.Font = new Font("Segoe UI", 9f);
-            txtSearch.Text = "Cari kontak / nomor...";
-            txtSearch.Enter += (s, e) => { if (txtSearch.Text == "Cari kontak / nomor...") txtSearch.Text = ""; };
-            txtSearch.Leave += (s, e) => { if (string.IsNullOrWhiteSpace(txtSearch.Text)) txtSearch.Text = "Cari kontak / nomor..."; };
-            txtSearch.TextChanged += (s, e) => FilterContacts(txtSearch.Text);
-
-            btnNewChat = CreateDarkButton("+ Nomor Baru", 118, 26);
-            btnNewChat.Location = new Point(8, 38);
-            btnNewChat.Click += (s, e) => OnNewChatClick();
-
-            Button btnSyncContacts = CreateDarkButton("🔄 Refresh", 118, 26);
-            btnSyncContacts.Location = new Point(134, 38);
-            btnSyncContacts.Click += (s, e) => OnResyncClick();
-
-            pnlContactTop.Controls.Add(txtSearch);
-            pnlContactTop.Controls.Add(btnNewChat);
-            pnlContactTop.Controls.Add(btnSyncContacts);
-
-            lstContacts = new DoubleBufferedListBox();
-            lstContacts.Dock = DockStyle.Fill;
-            lstContacts.BackColor = clrBgDark;
-            lstContacts.ForeColor = clrTextPrimary;
-            lstContacts.BorderStyle = BorderStyle.None;
-            lstContacts.DrawMode = DrawMode.OwnerDrawFixed;
-            lstContacts.ItemHeight = 52;
-            lstContacts.DrawItem += LstContacts_DrawItem;
-            lstContacts.SelectedIndexChanged += LstContacts_SelectedIndexChanged;
-
-            lblContactCount = new Label();
-            lblContactCount.Dock = DockStyle.Bottom;
-            lblContactCount.Height = 22;
-            lblContactCount.BackColor = clrHeader;
-            lblContactCount.ForeColor = clrTextMuted;
-            lblContactCount.Font = new Font("Segoe UI", 8f);
-            lblContactCount.TextAlign = ContentAlignment.MiddleCenter;
-            lblContactCount.Text = "Menghubungkan ke backend...";
-
-            pnlContacts.Controls.Add(lstContacts);
-            pnlContacts.Controls.Add(pnlContactTop);
-            pnlContacts.Controls.Add(lblContactCount);
-
-            // Chat Right Panel
-            pnlChat = new Panel();
-            pnlChat.Dock = DockStyle.Fill;
-            pnlChat.BackColor = clrChatBg;
-
-            pnlChatHeader = new Panel();
-            pnlChatHeader.Dock = DockStyle.Top;
-            pnlChatHeader.Height = 44;
-            pnlChatHeader.BackColor = clrHeader;
-
-            lblActiveName = new Label();
-            lblActiveName.Text = "Pilih kontak untuk mulai chat";
-            lblActiveName.Font = new Font("Segoe UI", 10.5f, FontStyle.Bold);
-            lblActiveName.ForeColor = clrTextPrimary;
-            lblActiveName.Location = new Point(12, 4);
-            lblActiveName.AutoSize = true;
-
-            lblActiveDetail = new Label();
-            lblActiveDetail.Text = "Josjis WhatsApp Stealth";
-            lblActiveDetail.Font = new Font("Segoe UI", 8f);
-            lblActiveDetail.ForeColor = clrTextMuted;
-            lblActiveDetail.Location = new Point(13, 24);
-            lblActiveDetail.AutoSize = true;
-
-            pnlChatHeader.Controls.Add(lblActiveName);
-            pnlChatHeader.Controls.Add(lblActiveDetail);
-
-            lstMessages = new DoubleBufferedListBox();
-            lstMessages.Dock = DockStyle.Fill;
-            lstMessages.BackColor = clrChatBg;
-            lstMessages.ForeColor = clrTextPrimary;
-            lstMessages.BorderStyle = BorderStyle.None;
-            lstMessages.DrawMode = DrawMode.OwnerDrawVariable;
-            lstMessages.MeasureItem += LstMessages_MeasureItem;
-            lstMessages.DrawItem += LstMessages_DrawItem;
-
-            pnlInput = new Panel();
-            pnlInput.Dock = DockStyle.Bottom;
-            pnlInput.Height = 52;
-            pnlInput.BackColor = clrHeader;
-
-            txtInput = new TextBox();
-            txtInput.Multiline = true;
-            txtInput.Location = new Point(10, 8);
-            txtInput.Width = 370;
-            txtInput.Height = 36;
-            txtInput.BackColor = clrSelected;
-            txtInput.ForeColor = clrTextPrimary;
-            txtInput.BorderStyle = BorderStyle.FixedSingle;
-            txtInput.Font = new Font("Segoe UI", 9.5f);
-            txtInput.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
-            txtInput.KeyDown += TxtInput_KeyDown;
-
-            btnSend = new Button();
-            btnSend.Text = "Kirim";
-            btnSend.Width = 65;
-            btnSend.Height = 36;
-            btnSend.Location = new Point(390, 8);
-            btnSend.Anchor = AnchorStyles.Right | AnchorStyles.Top;
-            btnSend.BackColor = clrAccent;
-            btnSend.ForeColor = Color.White;
-            btnSend.FlatStyle = FlatStyle.Flat;
-            btnSend.FlatAppearance.BorderSize = 0;
-            btnSend.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-            btnSend.Click += (s, e) => SendActiveMessage();
-
-            pnlInput.Controls.Add(txtInput);
-            pnlInput.Controls.Add(btnSend);
-
-            pnlChat.Controls.Add(lstMessages);
-            pnlChat.Controls.Add(pnlChatHeader);
-            pnlChat.Controls.Add(pnlInput);
-
-            pnlWhatsApp.Controls.Add(pnlChat);
-            pnlWhatsApp.Controls.Add(pnlContacts);
-
-            // Add main panels
-            this.Controls.Add(pnlWhatsApp);
-            this.Controls.Add(pnlPlatforms);
-            this.Controls.Add(pnlTopBar);
-
-            // Global Escape key panic handler
-            this.KeyDown += (s, e) => {
-                if (e.KeyCode == Keys.Escape)
-                {
-                    this.WindowState = FormWindowState.Minimized;
-                }
-            };
+            this.Controls.Add(pnlBody);
+            this.Controls.Add(pnlFooter);
+            this.Controls.Add(pnlHeader);
         }
 
-        private Panel CreatePlatformCard(string title, string status, string desc, Color accent, string btnText, EventHandler onClick)
+        private Panel CreatePlatformCard(string title, Color accentColor, string description, string btnText, int topPos, EventHandler onClick)
         {
             Panel card = new Panel();
-            card.Width = 670;
-            card.Height = 115;
-            card.BackColor = clrHeader;
+            card.Location = new Point(16, topPos);
+            card.Width = 480;
+            card.Height = 112;
+            card.BackColor = clrCard;
 
-            Label lblTitle = new Label();
-            lblTitle.Text = title;
-            lblTitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
-            lblTitle.ForeColor = accent;
-            lblTitle.Location = new Point(14, 12);
-            lblTitle.AutoSize = true;
-
-            Label lblStatus = new Label();
-            lblStatus.Text = status;
-            lblStatus.Font = new Font("Segoe UI", 8.5f, FontStyle.Italic);
-            lblStatus.ForeColor = clrTextMuted;
-            lblStatus.Location = new Point(16, 36);
-            lblStatus.AutoSize = true;
+            Label lblCardTitle = new Label();
+            lblCardTitle.Text = title;
+            lblCardTitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+            lblCardTitle.ForeColor = accentColor;
+            lblCardTitle.Location = new Point(14, 10);
+            lblCardTitle.AutoSize = true;
 
             Label lblDesc = new Label();
-            lblDesc.Text = desc;
-            lblDesc.Font = new Font("Segoe UI", 9f);
-            lblDesc.ForeColor = clrTextPrimary;
-            lblDesc.Location = new Point(16, 58);
-            lblDesc.AutoSize = true;
+            lblDesc.Text = description;
+            lblDesc.Font = new Font("Segoe UI", 8.5f);
+            lblDesc.ForeColor = clrMuted;
+            lblDesc.Location = new Point(14, 34);
+            lblDesc.Width = 320;
+            lblDesc.Height = 65;
 
             Button btn = new Button();
             btn.Text = btnText;
-            btn.Width = 145;
-            btn.Height = 32;
-            btn.Location = new Point(505, 40);
-            btn.BackColor = accent;
+            btn.Width = 125;
+            btn.Height = 36;
+            btn.Location = new Point(342, 38);
+            btn.BackColor = accentColor;
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderSize = 0;
-            btn.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
+            btn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             btn.Click += onClick;
 
-            card.Controls.Add(lblTitle);
-            card.Controls.Add(lblStatus);
+            card.Controls.Add(lblCardTitle);
             card.Controls.Add(lblDesc);
             card.Controls.Add(btn);
             return card;
         }
 
-        private Button CreateDarkButton(string text, int width, int height)
+        private void SetupTray()
         {
-            Button btn = new Button();
-            btn.Text = text;
-            btn.Width = width;
-            btn.Height = height;
-            btn.BackColor = clrSelected;
-            btn.ForeColor = clrTextPrimary;
-            btn.FlatStyle = FlatStyle.Flat;
-            btn.FlatAppearance.BorderSize = 0;
-            btn.Font = new Font("Segoe UI", 8.5f);
-            return btn;
-        }
+            trayIcon = new NotifyIcon();
+            trayIcon.Text = "Josjis Stealth Workspace";
+            trayIcon.Icon = SystemIcons.Application;
+            trayIcon.Visible = true;
 
-        // -------------------------------------------------------------
-        // STEALTH AUTO-DIMMING & BACKGROUND TIMERS
-        // -------------------------------------------------------------
-        private void SetupTimers()
-        {
-            // Auto-dimming timer (ticks every 50ms for silky smooth fade)
-            tmrStealth = new System.Windows.Forms.Timer();
-            tmrStealth.Interval = 50;
-            tmrStealth.Tick += (s, e) => {
-                Point cursor = Cursor.Position;
-                bool isHovered = this.Bounds.Contains(cursor);
-                bool isFocused = this.ContainsFocus;
+            ContextMenu menu = new ContextMenu();
+            menu.MenuItems.Add("Buka WhatsApp", (s, e) => LaunchPlatform("WhatsApp", "https://web.whatsapp.com"));
+            menu.MenuItems.Add("Buka Discord", (s, e) => LaunchPlatform("Discord", "https://discord.com/app"));
+            menu.MenuItems.Add("Buka TikTok", (s, e) => LaunchPlatform("TikTok", "https://www.tiktok.com/messages"));
+            menu.MenuItems.Add("-");
+            menu.MenuItems.Add("Tampilkan Pengaturan", (s, e) => {
+                this.WindowState = FormWindowState.Normal;
+                this.Show();
+                this.BringToFront();
+            });
+            menu.MenuItems.Add("Keluar", (s, e) => Application.Exit());
 
-                double target = (isHovered || isFocused) ? 1.0 : idleOpacity;
-
-                if (Math.Abs(this.Opacity - target) > 0.01)
-                {
-                    if (this.Opacity < target)
-                    {
-                        this.Opacity = Math.Min(target, this.Opacity + 0.12);
-                    }
-                    else
-                    {
-                        this.Opacity = Math.Max(target, this.Opacity - 0.05);
-                    }
-                }
+            trayIcon.ContextMenu = menu;
+            trayIcon.DoubleClick += (s, e) => {
+                this.WindowState = FormWindowState.Normal;
+                this.Show();
+                this.BringToFront();
             };
-            tmrStealth.Start();
-
-            // Background data polling timer (every 1.5s)
-            tmrSync = new System.Windows.Forms.Timer();
-            tmrSync.Interval = 1500;
-            tmrSync.Tick += (s, e) => TriggerSync();
-            tmrSync.Start();
         }
 
-        private void TogglePlatformSelector()
+        // -------------------------------------------------------------
+        // Platform Launcher & Stealth Engine
+        // -------------------------------------------------------------
+        private string FindBrowserPath()
         {
-            if (pnlPlatforms.Visible)
+            string[] searchPaths = new string[]
             {
-                pnlPlatforms.Visible = false;
-                pnlWhatsApp.Visible = true;
-            }
-            else
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft\\Edge\\Application\\msedge.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft\\Edge\\Application\\msedge.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft\\Edge\\Application\\msedge.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google\\Chrome\\Application\\chrome.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google\\Chrome\\Application\\chrome.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google\\Chrome\\Application\\chrome.exe")
+            };
+
+            foreach (string p in searchPaths)
             {
-                pnlPlatforms.Visible = true;
-                pnlWhatsApp.Visible = false;
+                if (File.Exists(p)) return p;
             }
+            return null;
         }
 
-        private void ShowWhatsAppView()
+        private void LaunchPlatform(string name, string url)
         {
-            pnlPlatforms.Visible = false;
-            pnlWhatsApp.Visible = true;
-            TriggerSync();
-        }
-
-        private void OnWAActionClick()
-        {
-            if (isWAConnected)
+            string browser = FindBrowserPath();
+            if (string.IsNullOrEmpty(browser))
             {
-                ShowWhatsAppView();
+                MessageBox.Show(
+                    "Browser Microsoft Edge atau Chrome tidak ditemukan pada sistem Anda.",
+                    "Browser Not Found",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return;
             }
-            else
-            {
+
+            lblStatus.Text = string.Format("Status: Membuka {0} dalam mode compact stealth...", name);
+
+            ThreadPool.QueueUserWorkItem(delegate {
                 try
                 {
-                    System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo();
-                    psi.FileName = "cmd.exe";
-                    psi.Arguments = "/c start cmd.exe /k \"reauth.bat\"";
-                    psi.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory;
-                    System.Diagnostics.Process.Start(psi);
+                    // User data profile path (per platform for separate persistent sessions)
+                    string profileDir = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "Josjis",
+                        name + "_Profile"
+                    );
+
+                    if (!Directory.Exists(profileDir))
+                    {
+                        Directory.CreateDirectory(profileDir);
+                    }
+
+                    // Launch in clean borderless App Mode (no address bar, no tabs, native compact window)
+                    ProcessStartInfo psi = new ProcessStartInfo();
+                    psi.FileName = browser;
+                    psi.Arguments = string.Format(
+                        "--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=440,680 --no-first-run --no-default-browser-check",
+                        url,
+                        profileDir
+                    );
+
+                    Process proc = Process.Start(psi);
+                    if (proc == null) return;
+
+                    // Locate the window handle
+                    IntPtr hwnd = IntPtr.Zero;
+                    for (int i = 0; i < 30; i++)
+                    {
+                        Thread.Sleep(250);
+                        proc.Refresh();
+                        hwnd = proc.MainWindowHandle;
+                        if (hwnd != IntPtr.Zero) break;
+
+                        // Fallback: search process by name
+                        hwnd = FindWindowByProcessId(proc.Id);
+                        if (hwnd != IntPtr.Zero) break;
+                    }
+
+                    if (hwnd == IntPtr.Zero)
+                    {
+                        // Fallback: search any edge/chrome window created recently
+                        hwnd = FindWindowByTitleSubstring(name);
+                    }
+
+                    PlatformSession session = new PlatformSession();
+                    session.Name = name;
+                    session.Url = url;
+                    session.ProcessInstance = proc;
+                    session.MainWindowHandle = hwnd;
+                    session.IsRunning = true;
+
+                    lock (sessionLock)
+                    {
+                        if (activeSession != null)
+                        {
+                            activeSession.IsRunning = false;
+                        }
+                        activeSession = session;
+                    }
+
+                    // Apply OS-level Layered Window Style for Ghost Transparency
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        int style = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+                        NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, style | NativeMethods.WS_EX_LAYERED);
+                        NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 255, NativeMethods.LWA_ALPHA);
+
+                        if (chkTopMost.Checked)
+                        {
+                            NativeMethods.SetWindowPos(hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0, NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE);
+                        }
+                    }
+
+                    this.BeginInvoke((MethodInvoker)delegate {
+                        lblStatus.Text = string.Format("Status: {0} aktif! Ghost mode otomatis memudar saat kursor menjauh.", name);
+                    });
+
+                    // Start Stealth Background Controller
+                    StartStealthController(session);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Silakan jalankan file reauth.bat di folder aplikasi untuk scan QR Code:\n" + ex.Message);
-                }
-            }
-        }
-
-        private void ToggleMiniMode()
-        {
-            pnlContacts.Visible = !pnlContacts.Visible;
-            if (!pnlContacts.Visible)
-            {
-                this.Width = 420;
-                btnMiniToggle.Text = "📐 Full";
-            }
-            else
-            {
-                this.Width = 740;
-                btnMiniToggle.Text = "📐 Mini";
-            }
-        }
-
-        // -------------------------------------------------------------
-        // HTTP API COMMUNICATION
-        // -------------------------------------------------------------
-        private void TriggerSync()
-        {
-            if (isSyncing) return;
-            isSyncing = true;
-
-            ThreadPool.QueueUserWorkItem(delegate {
-                try
-                {
-                    // 1. Fetch Status
-                    bool freshWAConnected = false;
-                    try
-                    {
-                        string jsonStatus = HttpGet(API_URL + "/api/status");
-                        JsonValue statusObj = MiniJson.Parse(jsonStatus);
-                        freshWAConnected = statusObj["waConnected"].AsBool();
-                    }
-                    catch { }
-
-                    // 2. Fetch Channels
-                    string jsonChannels = HttpGet(API_URL + "/api/channels");
-                    JsonValue parsed = MiniJson.Parse(jsonChannels);
-                    List<ChannelItem> freshList = new List<ChannelItem>();
-
-                    foreach (JsonValue ch in parsed.AsList())
-                    {
-                        freshList.Add(new ChannelItem
-                        {
-                            Id = ch["id"].AsString(),
-                            RawId = ch["rawId"].AsString(),
-                            DisplayName = ch["displayName"].AsString(),
-                            Platform = ch["platform"].AsString(),
-                            IsGroup = ch["isGroup"].AsBool(),
-                            Timestamp = ch["timestamp"].AsLong()
-                        });
-                    }
-
-                    // 3. Fetch Active Channel Messages
-                    string activeRawId = "";
-                    if (activeChannel != null) activeRawId = activeChannel.RawId;
-
-                    string jsonMsgs = HttpGet(API_URL + "/api/messages?channelId=" + Uri.EscapeDataString(activeRawId));
-                    JsonValue parsedMsgs = MiniJson.Parse(jsonMsgs);
-                    List<MessageItem> freshMsgs = new List<MessageItem>();
-
-                    foreach (JsonValue m in parsedMsgs.AsList())
-                    {
-                        freshMsgs.Add(new MessageItem
-                        {
-                            Source = m["source"].AsString(),
-                            ChannelId = m["channelId"].AsString(),
-                            ChannelName = m["channelName"].AsString(),
-                            Sender = m["sender"].AsString(),
-                            IsMe = m["isMe"].AsBool(),
-                            IsGroup = m["isGroup"].AsBool(),
-                            Text = m["text"].AsString(),
-                            Timestamp = m["timestamp"].AsLong()
-                        });
-                    }
-
-                    // 4. Update UI on Main Thread
                     this.BeginInvoke((MethodInvoker)delegate {
-                        isWAConnected = freshWAConnected;
-                        if (lblWAStatus != null && btnWAAction != null)
-                        {
-                            if (isWAConnected)
-                            {
-                                lblWAStatus.Text = "Status: ● Terhubung & Online (Baileys Engine)";
-                                lblWAStatus.ForeColor = clrAccent;
-                                btnWAAction.Text = "Buka WhatsApp Chat";
-                                btnWAAction.BackColor = clrAccent;
-                            }
-                            else
-                            {
-                                lblWAStatus.Text = "Status: ● Belum Tertaut (Scan QR Diperlukan)";
-                                lblWAStatus.ForeColor = Color.FromArgb(241, 196, 15);
-                                btnWAAction.Text = "⚡ Scan QR Code";
-                                btnWAAction.BackColor = Color.FromArgb(230, 126, 34);
-                            }
-                        }
-
-                        UpdateChannelsUI(freshList);
-                        UpdateMessagesUI(freshMsgs);
-                        isSyncing = false;
+                        lblStatus.Text = "Error saat meluncurkan: " + ex.Message;
                     });
                 }
-                catch
-                {
-                    isSyncing = false;
-                }
             });
         }
 
-        private void UpdateChannelsUI(List<ChannelItem> freshList)
+        private IntPtr FindWindowByProcessId(int processId)
         {
-            if (!isWAConnected)
-            {
-                lblContactCount.Text = "WhatsApp belum tertaut! Klik Menu Platform -> Scan QR.";
-                return;
-            }
-
-            if (freshList == null || freshList.Count == 0)
-            {
-                lblContactCount.Text = "0 kontak terdeteksi (klik Sync atau nomor baru)";
-                return;
-            }
-
-            allChannels = freshList;
-            lblContactCount.Text = string.Format("Total {0} kontak tersinkronisasi", allChannels.Count);
-
-            // Populate list if empty or count mismatch
-            string filter = (txtSearch.Text == "Cari kontak / nomor...") ? "" : txtSearch.Text.Trim();
-            FilterContacts(filter);
-
-            // Auto-select first channel if none active
-            if (activeChannel == null && lstContacts.Items.Count > 0)
-            {
-                lstContacts.SelectedIndex = 0;
-            }
-        }
-
-        private void FilterContacts(string query)
-        {
-            string q = query.ToLower();
-            lstContacts.BeginUpdate();
-            lstContacts.Items.Clear();
-
-            foreach (ChannelItem c in allChannels)
-            {
-                if (string.IsNullOrEmpty(q) || c.DisplayName.ToLower().Contains(q) || c.RawId.ToLower().Contains(q))
+            IntPtr found = IntPtr.Zero;
+            NativeMethods.EnumWindows(delegate (IntPtr hWnd, IntPtr lParam) {
+                uint pid;
+                NativeMethods.GetWindowThreadProcessId(hWnd, out pid);
+                if (pid == processId)
                 {
-                    lstContacts.Items.Add(c);
-                }
-            }
-
-            // Restore selection if active channel is present
-            if (activeChannel != null)
-            {
-                for (int i = 0; i < lstContacts.Items.Count; i++)
-                {
-                    ChannelItem itm = lstContacts.Items[i] as ChannelItem;
-                    if (itm != null && itm.RawId == activeChannel.RawId)
+                    StringBuilder sb = new StringBuilder(256);
+                    NativeMethods.GetWindowText(hWnd, sb, 256);
+                    if (sb.Length > 0)
                     {
-                        lstContacts.SelectedIndex = i;
-                        break;
+                        found = hWnd;
+                        return false; // Stop enumeration
                     }
                 }
-            }
-
-            lstContacts.EndUpdate();
-        }
-
-        private void UpdateMessagesUI(List<MessageItem> freshMsgs)
-        {
-            if (freshMsgs == null) return;
-
-            // Only refresh if message count or content changed
-            if (freshMsgs.Count != currentMessages.Count)
-            {
-                currentMessages = freshMsgs;
-                lstMessages.BeginUpdate();
-                lstMessages.Items.Clear();
-
-                foreach (MessageItem m in currentMessages)
-                {
-                    lstMessages.Items.Add(m);
-                }
-
-                lstMessages.EndUpdate();
-
-                // Auto-scroll to latest message
-                if (lstMessages.Items.Count > 0)
-                {
-                    lstMessages.TopIndex = lstMessages.Items.Count - 1;
-                }
-            }
-        }
-
-        private void LstContacts_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            ChannelItem sel = lstContacts.SelectedItem as ChannelItem;
-            if (sel != null && sel != activeChannel)
-            {
-                activeChannel = sel;
-                lblActiveName.Text = sel.DisplayName;
-                lblActiveDetail.Text = string.Format("{0} • {1}", sel.RawId, sel.IsGroup ? "Grup WhatsApp" : "Chat Personal");
-
-                // Notify backend of channel switch
-                ThreadPool.QueueUserWorkItem(delegate {
-                    HttpPost(API_URL + "/api/select", string.Format("{{\"channelId\":\"{0}\"}}", sel.RawId));
-                    TriggerSync();
-                });
-            }
-        }
-
-        private void TxtInput_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Enter && !e.Shift)
-            {
-                e.SuppressKeyPress = true;
-                SendActiveMessage();
-            }
-            else if (e.KeyCode == Keys.Escape)
-            {
-                this.WindowState = FormWindowState.Minimized;
-            }
-        }
-
-        private void SendActiveMessage()
-        {
-            string text = txtInput.Text.Trim();
-            if (string.IsNullOrEmpty(text)) return;
-
-            txtInput.Text = "";
-
-            ThreadPool.QueueUserWorkItem(delegate {
-                try
-                {
-                    string safeText = text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "");
-                    HttpPost(API_URL + "/api/send", string.Format("{{\"text\":\"{0}\"}}", safeText));
-                    Thread.Sleep(200);
-                    TriggerSync();
-                }
-                catch { }
-            });
-        }
-
-        private void OnNewChatClick()
-        {
-            using (Form prompt = new Form())
-            {
-                prompt.Width = 360;
-                prompt.Height = 180;
-                prompt.FormBorderStyle = FormBorderStyle.FixedDialog;
-                prompt.Text = "Chat Nomor WhatsApp Baru";
-                prompt.StartPosition = FormStartPosition.CenterParent;
-                prompt.BackColor = clrBgDark;
-                prompt.ForeColor = clrTextPrimary;
-
-                Label lbl = new Label() { Left = 16, Top = 16, Width = 310, Text = "Masukkan Nomor HP WhatsApp (contoh: 0812345678):" };
-                TextBox tb = new TextBox() { Left = 16, Top = 42, Width = 310, BackColor = clrHeader, ForeColor = clrTextPrimary, BorderStyle = BorderStyle.FixedSingle };
-                Button btnOk = new Button() { Text = "Mulai Chat", Left = 16, Width = 150, Top = 80, DialogResult = DialogResult.OK, BackColor = clrAccent, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-                Button btnCancel = new Button() { Text = "Batal", Left = 176, Width = 150, Top = 80, DialogResult = DialogResult.Cancel, BackColor = clrSelected, ForeColor = clrTextPrimary, FlatStyle = FlatStyle.Flat };
-
-                prompt.Controls.Add(lbl);
-                prompt.Controls.Add(tb);
-                prompt.Controls.Add(btnOk);
-                prompt.Controls.Add(btnCancel);
-                prompt.AcceptButton = btnOk;
-                prompt.CancelButton = btnCancel;
-
-                if (prompt.ShowDialog(this) == DialogResult.OK)
-                {
-                    string num = tb.Text.Trim();
-                    if (!string.IsNullOrEmpty(num))
-                    {
-                        ThreadPool.QueueUserWorkItem(delegate {
-                            HttpPost(API_URL + "/api/sendto", string.Format("{{\"target\":\"{0}\",\"text\":\"Halo\"}}", num));
-                            Thread.Sleep(400);
-                            TriggerSync();
-                        });
-                    }
-                }
-            }
-        }
-
-        private void OnResyncClick()
-        {
-            lblContactCount.Text = "Menyinkronkan kontak dari server WhatsApp...";
-            ThreadPool.QueueUserWorkItem(delegate {
-                try
-                {
-                    HttpPost(API_URL + "/api/resync", "{}");
-                    Thread.Sleep(800);
-                    TriggerSync();
-                }
-                catch { }
-            });
-        }
-
-        // -------------------------------------------------------------
-        // CUSTOM DRAWING: CONTACT LIST ITEMS
-        // -------------------------------------------------------------
-        private void LstContacts_DrawItem(object sender, DrawItemEventArgs e)
-        {
-            if (e.Index < 0 || e.Index >= lstContacts.Items.Count) return;
-            ChannelItem item = lstContacts.Items[e.Index] as ChannelItem;
-            if (item == null) return;
-
-            Graphics g = e.Graphics;
-            bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-
-            // Background
-            using (SolidBrush bgBrush = new SolidBrush(isSelected ? clrSelected : clrBgDark))
-            {
-                g.FillRectangle(bgBrush, e.Bounds);
-            }
-
-            // Avatar Icon Circle
-            Rectangle avatarRect = new Rectangle(e.Bounds.Left + 8, e.Bounds.Top + 8, 36, 36);
-            using (SolidBrush avBrush = new SolidBrush(item.IsGroup ? Color.FromArgb(0, 120, 100) : Color.FromArgb(40, 60, 75)))
-            {
-                g.FillEllipse(avBrush, avatarRect);
-            }
-
-            string initial = item.DisplayName.Length > 0 ? item.DisplayName.Substring(0, 1).ToUpper() : "?";
-            using (Font avFont = new Font("Segoe UI", 12f, FontStyle.Bold))
-            using (SolidBrush avTxt = new SolidBrush(Color.White))
-            {
-                SizeF sz = g.MeasureString(initial, avFont);
-                g.DrawString(initial, avFont, avTxt, avatarRect.Left + (avatarRect.Width - sz.Width) / 2, avatarRect.Top + (avatarRect.Height - sz.Height) / 2);
-            }
-
-            // Contact Name
-            using (Font nameFont = new Font("Segoe UI", 9.5f, FontStyle.Bold))
-            using (SolidBrush nameBrush = new SolidBrush(isSelected ? clrAccent : clrTextPrimary))
-            {
-                g.DrawString(item.DisplayName, nameFont, nameBrush, e.Bounds.Left + 52, e.Bounds.Top + 8);
-            }
-
-            // Subtitle / JID preview
-            using (Font subFont = new Font("Segoe UI", 8f))
-            using (SolidBrush subBrush = new SolidBrush(clrTextMuted))
-            {
-                string info = item.IsGroup ? "[Grup]" : item.RawId.Split('@')[0];
-                g.DrawString(info, subFont, subBrush, e.Bounds.Left + 52, e.Bounds.Top + 28);
-            }
-
-            // Bottom Separator Line
-            using (Pen sepPen = new Pen(Color.FromArgb(25, 38, 45)))
-            {
-                g.DrawLine(sepPen, e.Bounds.Left + 52, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
-            }
-        }
-
-        // -------------------------------------------------------------
-        // CUSTOM DRAWING: SPEECH BUBBLES IN MESSAGE LIST
-        // -------------------------------------------------------------
-        private void LstMessages_MeasureItem(object sender, MeasureItemEventArgs e)
-        {
-            if (e.Index < 0 || e.Index >= lstMessages.Items.Count) return;
-            MessageItem msg = lstMessages.Items[e.Index] as MessageItem;
-            if (msg == null) return;
-
-            int maxTextWidth = Math.Max(180, (int)(lstMessages.Width * 0.70));
-            using (Font font = new Font("Segoe UI", 9.5f))
-            {
-                SizeF sz = e.Graphics.MeasureString(msg.Text, font, maxTextWidth);
-                e.ItemHeight = Math.Max(44, (int)sz.Height + 28);
-            }
-        }
-
-        private void LstMessages_DrawItem(object sender, DrawItemEventArgs e)
-        {
-            if (e.Index < 0 || e.Index >= lstMessages.Items.Count) return;
-            MessageItem msg = lstMessages.Items[e.Index] as MessageItem;
-            if (msg == null) return;
-
-            Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // Clear row background
-            using (SolidBrush bgBrush = new SolidBrush(clrChatBg))
-            {
-                g.FillRectangle(bgBrush, e.Bounds);
-            }
-
-            int maxBubbleWidth = Math.Max(180, (int)(lstMessages.Width * 0.70));
-            Font textFont = new Font("Segoe UI", 9.5f);
-            SizeF textSz = g.MeasureString(msg.Text, textFont, maxBubbleWidth);
-
-            int bubbleWidth = Math.Max(120, (int)textSz.Width + 24);
-            int bubbleHeight = Math.Max(36, (int)textSz.Height + 22);
-
-            Rectangle bubbleRect;
-            Color bubbleColor;
-
-            if (msg.IsMe)
-            {
-                // Outgoing message (Right-aligned, WhatsApp Dark Green)
-                bubbleRect = new Rectangle(e.Bounds.Right - bubbleWidth - 14, e.Bounds.Top + 3, bubbleWidth, bubbleHeight);
-                bubbleColor = clrBubbleMe;
-            }
-            else
-            {
-                // Incoming message (Left-aligned, WhatsApp Dark Gray/Teal)
-                bubbleRect = new Rectangle(e.Bounds.Left + 14, e.Bounds.Top + 3, bubbleWidth, bubbleHeight);
-                bubbleColor = clrBubbleOther;
-            }
-
-            // Draw Rounded Message Bubble
-            using (GraphicsPath path = CreateRoundedRectangle(bubbleRect, 8))
-            using (SolidBrush bBrush = new SolidBrush(bubbleColor))
-            {
-                g.FillPath(bBrush, path);
-            }
-
-            // Draw Sender Name if incoming
-            int textTop = bubbleRect.Top + 6;
-            if (!msg.IsMe && !string.IsNullOrEmpty(msg.Sender) && msg.Sender != "You")
-            {
-                using (Font senderFont = new Font("Segoe UI", 8f, FontStyle.Bold))
-                using (SolidBrush senderBrush = new SolidBrush(clrAccent))
-                {
-                    g.DrawString(msg.Sender, senderFont, senderBrush, bubbleRect.Left + 10, textTop);
-                    textTop += 14;
-                }
-            }
-
-            // Draw Message Text
-            Rectangle textRect = new Rectangle(bubbleRect.Left + 10, textTop, bubbleRect.Width - 16, (int)textSz.Height + 4);
-            using (SolidBrush textBrush = new SolidBrush(clrTextPrimary))
-            {
-                g.DrawString(msg.Text, textFont, textBrush, textRect);
-            }
-
-            // Draw Timestamp at bottom right of bubble
-            if (msg.Timestamp > 0)
-            {
-                DateTime dt = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(msg.Timestamp).ToLocalTime();
-                string timeStr = dt.ToString("HH:mm");
-                using (Font timeFont = new Font("Segoe UI", 7.5f))
-                using (SolidBrush timeBrush = new SolidBrush(Color.FromArgb(180, 195, 205)))
-                {
-                    SizeF timeSz = g.MeasureString(timeStr, timeFont);
-                    g.DrawString(timeStr, timeFont, timeBrush, bubbleRect.Right - timeSz.Width - 6, bubbleRect.Bottom - timeSz.Height - 3);
-                }
-            }
-        }
-
-        private GraphicsPath CreateRoundedRectangle(Rectangle rect, int radius)
-        {
-            GraphicsPath path = new GraphicsPath();
-            int d = radius * 2;
-            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
-            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
-            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
-            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
-            path.CloseFigure();
-            return path;
-        }
-
-        // -------------------------------------------------------------
-        // MINIMAL HTTP REQUEST HELPERS
-        // -------------------------------------------------------------
-        private static string HttpGet(string url)
-        {
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-            req.Method = "GET";
-            req.Timeout = 2500;
-            using (HttpWebResponse res = (HttpWebResponse)req.GetResponse())
-            using (StreamReader reader = new StreamReader(res.GetResponseStream(), Encoding.UTF8))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        private static string HttpPost(string url, string jsonBody)
-        {
-            byte[] bytes = Encoding.UTF8.GetBytes(jsonBody);
-            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-            req.Method = "POST";
-            req.ContentType = "application/json";
-            req.ContentLength = bytes.Length;
-            req.Timeout = 2500;
-            using (Stream st = req.GetRequestStream())
-            {
-                st.Write(bytes, 0, bytes.Length);
-            }
-            using (HttpWebResponse res = (HttpWebResponse)req.GetResponse())
-            using (StreamReader reader = new StreamReader(res.GetResponseStream(), Encoding.UTF8))
-            {
-                return reader.ReadToEnd();
-            }
-        }
-
-        // Override Escape globally inside the form
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        {
-            if (keyData == Keys.Escape)
-            {
-                this.WindowState = FormWindowState.Minimized;
                 return true;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        private IntPtr FindWindowByTitleSubstring(string substr)
+        {
+            IntPtr found = IntPtr.Zero;
+            NativeMethods.EnumWindows(delegate (IntPtr hWnd, IntPtr lParam) {
+                StringBuilder sb = new StringBuilder(256);
+                NativeMethods.GetWindowText(hWnd, sb, 256);
+                string title = sb.ToString();
+                if (title.IndexOf(substr, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    found = hWnd;
+                    return false;
+                }
+                return true;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        // -------------------------------------------------------------
+        // Stealth Transparency & Panic Key Monitoring Loop
+        // -------------------------------------------------------------
+        private void StartStealthController(PlatformSession session)
+        {
+            Thread t = new Thread(delegate () {
+                byte currentAlpha = 255;
+                int outsideCounter = 0;
+
+                while (session.IsRunning && !session.ProcessInstance.HasExited)
+                {
+                    Thread.Sleep(50);
+
+                    IntPtr hwnd = session.MainWindowHandle;
+                    if (hwnd == IntPtr.Zero)
+                    {
+                        hwnd = session.ProcessInstance.MainWindowHandle;
+                        if (hwnd != IntPtr.Zero)
+                        {
+                            session.MainWindowHandle = hwnd;
+                            int style = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+                            NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, style | NativeMethods.WS_EX_LAYERED);
+                            NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 255, NativeMethods.LWA_ALPHA);
+                        }
+                        continue;
+                    }
+
+                    // 1. Global Panic Key Handler ([Esc] = 0x1B)
+                    short escState = NativeMethods.GetAsyncKeyState(NativeMethods.VK_ESCAPE);
+                    if ((escState & 0x8000) != 0)
+                    {
+                        IntPtr fg = NativeMethods.GetForegroundWindow();
+                        if (fg == hwnd)
+                        {
+                            NativeMethods.ShowWindow(hwnd, NativeMethods.SW_MINIMIZE);
+                            Thread.Sleep(400); // debounce
+                            continue;
+                        }
+                    }
+
+                    // 2. Mouse Position & Window Rect
+                    NativeMethods.POINT pt;
+                    NativeMethods.RECT rect;
+                    NativeMethods.GetCursorPos(out pt);
+                    NativeMethods.GetWindowRect(hwnd, out rect);
+
+                    bool isInside = (pt.X >= rect.Left && pt.X <= rect.Right && pt.Y >= rect.Top && pt.Y <= rect.Bottom);
+
+                    // Read user settings
+                    bool autoDimEnabled = true;
+                    int targetOpacityPercent = 20;
+
+                    this.Invoke((MethodInvoker)delegate {
+                        autoDimEnabled = chkAutoDim.Checked;
+                        targetOpacityPercent = trkOpacity.Value;
+                    });
+
+                    if (!autoDimEnabled)
+                    {
+                        if (currentAlpha != 255)
+                        {
+                            currentAlpha = 255;
+                            NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 255, NativeMethods.LWA_ALPHA);
+                        }
+                        continue;
+                    }
+
+                    byte idleAlpha = (byte)Math.Max(25, (int)(targetOpacityPercent * 2.55));
+
+                    if (isInside)
+                    {
+                        outsideCounter = 0;
+                        // Smoothly or quickly restore to 100%
+                        if (currentAlpha < 255)
+                        {
+                            currentAlpha = (byte)Math.Min(255, (int)currentAlpha + 45);
+                            NativeMethods.SetLayeredWindowAttributes(hwnd, 0, currentAlpha, NativeMethods.LWA_ALPHA);
+                        }
+                    }
+                    else
+                    {
+                        outsideCounter++;
+                        // Dim after ~200ms outside
+                        if (outsideCounter > 4)
+                        {
+                            if (currentAlpha > idleAlpha)
+                            {
+                                currentAlpha = (byte)Math.Max((int)idleAlpha, (int)currentAlpha - 25);
+                                NativeMethods.SetLayeredWindowAttributes(hwnd, 0, currentAlpha, NativeMethods.LWA_ALPHA);
+                            }
+                        }
+                    }
+                }
+
+                // Process exited or terminated
+                this.BeginInvoke((MethodInvoker)delegate {
+                    lblStatus.Text = string.Format("Status: Sesi {0} telah ditutup.", session.Name);
+                });
+            });
+
+            t.IsBackground = true;
+            session.MonitorThread = t;
+            t.Start();
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (trayIcon != null)
+            {
+                trayIcon.Visible = false;
+                trayIcon.Dispose();
             }
-            return base.ProcessCmdKey(ref msg, keyData);
+            base.OnFormClosing(e);
         }
 
         [STAThread]
