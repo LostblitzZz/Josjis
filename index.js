@@ -1,23 +1,32 @@
 require('dotenv').config();
 const path = require('path');
 const ChatHub = require('./src/hub');
-const { createStreamUI } = require('./src/ui/streamUI');
+const { startWebServer } = require('./src/server');
 
 async function main() {
+  const port = process.env.PORT || 3821;
+
   const hub = new ChatHub({
     waAuthDir: path.join(__dirname, 'auth/wa_session'),
     discordToken: process.env.DISCORD_TOKEN,
     tiktokCookiePath: path.join(__dirname, 'auth/tiktok_cookies.json')
   });
 
-  const { printLine } = createStreamUI(hub);
-
-  printLine('\x1b[90m[systemd]\x1b[0m Starting Ingress Telemetry Worker Daemon...');
+  console.log('================================================================');
+  console.log('   Josjis - Stealth Multi-Chat (WhatsApp Web & Discord Client)   ');
+  console.log('================================================================');
+  console.log(`[systemd] Live Web UI ready at: http://localhost:${port}`);
+  console.log(`[systemd] Buka http://localhost:${port} di browser kamu`);
+  console.log('----------------------------------------------------------------');
 
   try {
+    await startWebServer(hub, port);
+    console.log(`[systemd] HTTP/WebSocket Server listening on port ${port}`);
+
     await hub.init();
+    console.log('[systemd] Communication channels initialized.');
   } catch (err) {
-    printLine(`\x1b[31m[CRITICAL]\x1b[0m Initialization error: ${err.message}`);
+    console.error('[CRITICAL] Initialization error:', err.message);
   }
 }
 

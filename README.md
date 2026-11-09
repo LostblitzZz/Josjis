@@ -1,49 +1,37 @@
-# Josjis
+# Josjis - Stealth Multi-Chat Hub (WhatsApp Web & Discord)
 
-Terminal-based stealth multi-chat client (WhatsApp, Discord, TikTok DM) disguised as a backend server systemd/journalctl daemon.
-
----
-
-## 💻 Panduan Menjalankan di Windows
-
-### 1. Prasyarat
-* Install **Node.js** (v18 atau v20+) dari [nodejs.org](https://nodejs.org/).
-* Clone repo ini:
-  ```bat
-  git clone https://github.com/LostblitzZz/Josjis.git
-  cd Josjis
-  npm install
-  ```
-
-### 2. Tautkan WhatsApp (Cukup Sekali)
-Double-click file **`auth.bat`** (atau jalankan `npm run auth` di terminal).
-Scan QR code yang muncul di layar dengan WhatsApp HP (`Perangkat Tertaut` / `Linked Devices`). Tunggu sampai muncul notifikasi sukses, lalu jendela akan tertutup otomatis.
-
-### 3. Jalankan Mode Stealth
-Double-click file **`start.bat`** (atau jalankan `npm start` di terminal).
-Layar terminal otomatis menyamar sebagai `journalctl -u ingress-telemetry.service -f`.
+Aplikasi chat stealth khusus kantor yang tampil persis **WhatsApp Web** dan **Discord**, namun disamarkan sebagai **GitHub Pull Request & Visual Studio Code**.
 
 ---
 
-## 💬 Cara Pakai Chat & Perintah Lengkap
+## 🚀 Cara Menjalankan di Windows
 
-Di layar prompt `rpc-exec > `, kamu bisa langsung gunakan perintah berikut:
+### 1. Update ke Versi Terbaru
+Buka folder `Josjis` di terminal:
+```bat
+git pull origin main
+npm install
+```
 
-| Perintah | Deskripsi | Contoh |
-| :--- | :--- | :--- |
-| **Ketik teks biasa + Enter** | Kirim pesan ke target yang sedang aktif | `Halo bro, lagi di mana?` |
-| **`:to <nomor> <pesan>`** | Kirim pesan langsung ke nomor HP siapapun | `:to 08123456789 Halo bro` |
-| **`:ls`** atau **`:list`** | Tampilkan daftar semua chat yang tersinkron | `:ls` |
-| **`:use <angka/nama>`** | Ganti target chat aktif | `:use 1` atau `:use Budi` |
-| **`:p`** atau tombol **`Esc`** | **Panic Button**. Layar langsung bersih dan memunculkan fake compiler log (`cargo build`). Tekan Enter untuk kembali. | `:p` |
-| **`:m`** | Ganti mode format log backend vs format teks chat | `:m` |
-| **`:clear`** | Bersihkan layar log | `:clear` |
-| **`:help`** | Tampilkan panduan perintah | `:help` |
-| **`:q`** | Keluar dari aplikasi | `:q` |
+### 2. Tautkan WhatsApp (Cukup 1x)
+Double-click **`auth.bat`** lalu scan QR dengan WhatsApp HP (`Perangkat Tertaut`).
+
+### 3. Jalankan Aplikasi
+Double-click **`start.bat`**.
+* Browser akan otomatis terbuka ke: **`http://localhost:3821`**
+* Terminal di latar belakang menyamar sebagai log service `journalctl`.
 
 ---
 
-## ⚙️ Tambah Discord / TikTok (Opsional)
-Salin `.env.example` menjadi `.env`:
-* **Discord Bot**: Masukkan bot token di `DISCORD_TOKEN=...`.
-* **TikTok DM**: Kerangka adapter tersedia di `src/adapters/tiktok.js`.
+## 🛡️ Fitur Stealth & Penyamaran Kantor
+
+1. **Tampilan Tab Browser:**
+   * Judul tab otomatis menyamar jadi: `PR #412: Optimize database connection pool · Pull Request #412`
+   * Ikon tab (favicon) menggunakan logo resmi GitHub.
+2. **Panic Key (`Esc`):**
+   * Tekan tombol **`Esc`** di keyboard kapan saja. Layar seketika berubah 100% jadi **Visual Studio Code** lengkap dengan kode backend TypeScript dan file explorer.
+   * Tekan **`Esc`** lagi untuk kembali ke WhatsApp Web.
+3. **Point-and-Click User Friendly:**
+   * Tampilan chat bubble persis WhatsApp Web asli (balon hijau untuk pesanmu, balon abu-abu untuk kontak).
+   * Tombol **`+ Chat`** untuk langsung kirim pesan ke nomor HP mana saja.
+   * Tab switch di atas untuk berpindah antara **WhatsApp** dan **Discord**.
