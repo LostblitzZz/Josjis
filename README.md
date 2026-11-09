@@ -1,37 +1,46 @@
-# Josjis Native - Lightweight Stealth Multi-Client
+# Josjis Desktop - Native Stealth Multi-Chat Workspace
 
-Aplikasi chat stealth khusus kantor yang **100% Native, Ringan (0 MB install)** dan membuka WhatsApp Web resmi langsung sehingga **100% SEMUA CHAT, GRUP, & MEDIA ADA LENGKAP**.
+Aplikasi percakapan stealth desktop **100% Native Windows (Josjis.exe)** tanpa membuka browser (Edge / Chrome) dan tanpa framework berat (Electron). 
 
 ---
 
-## ⚡ Kenapa Ini Jauh Lebih Bagus & Ringan?
-1. **0 MB Install / Tanpa Electron:**  
-   Menggunakan engine bawaan Windows (*Microsoft Edge / Chrome App Mode*) dan Windows API (`user32.dll`) via PowerShell. Tidak butuh download ratusan megabyte.
-2. **100% Semua Chat Lengkap:**  
-   Bukan bot Baileys yang dibatasi server WhatsApp. Ini adalah WhatsApp Web resmi langsung, jadi semua riwayat bertahun-tahun, kontak, foto, dokumen, dan voice note pasti ada lengkap.
-3. **Auto-Opacity Ghost Mode (Tingkat OS):**  
-   Saat kursor mouse keluar dari jendela, **seluruh jendela otomatis meredup transparan (20% opacity)**. Begitu mouse menyentuh jendela, seketika terang 100%.
-4. **Ukuran Super Compact (380x620):**  
-   Tampil dalam jendela mandiri tanpa tab atau address bar, bisa digeser ke pojok monitor dan diperkecil.
-5. **Panic Key (`Esc`):**  
-   Tekan tombol `Esc` kapan saja untuk langsung menyembunyikan / me-minimize jendela seketika.
-6. **Pilihan Platform di Awal:**  
-   Bisa memilih:
-   * **[1] WhatsApp Web**
-   * **[2] Discord Web**
-   * **[3] TikTok Messages**
+## ⚡ Fitur Utama
+
+1. **100% Native Windows GUI (`Josjis.exe`):**  
+   Dibuat dan dikompilasi langsung menggunakan compiler bawaan Windows (`csc.exe` dari Microsoft .NET Framework). Ukuran sangat kecil, startup instan (< 1 detik), memori ringan.
+2. **Stealth Auto-Dimming (Ghost Mode):**  
+   Saat kursor mouse menjauh atau tidak aktif, jendela otomatis meredup transparan (default **20% opacity**). Begitu mouse digerakkan ke dalam jendela, aplikasi seketika kembali terang (100% opacity). Tingkat ghost opacity bisa diatur dengan slider (10% - 60%).
+3. **Platform Hub Selector:**  
+   Dashboard awal dengan pilihan:
+   - **[WhatsApp]**: Terhubung langsung ke WhatsApp Multi-Device (personal chat, grup, bubble messages).
+   - **[Discord]**: Bot gateway standby (masukkan token di `.env`).
+   - **[TikTok DM]**: Headless direct message standby (sesi cookie di `auth/tiktok_cookies.json`).
+4. **Panic Minimize (`Esc`):**  
+   Tekan tombol `Esc` kapan saja untuk langsung me-minimize jendela ke taskbar.
+5. **Mode Super Compact (`Mini`):**  
+   Klik tombol **📐 Mini** atau perkecil jendela hingga 380px untuk menyembunyikan panel kontak dan hanya menyisakan jendela chat aktif di pojok monitor.
+6. **Mulai Chat ke Nomor Apa Saja:**  
+   Gunakan tombol **+ Nomor Baru** untuk langsung memulai obrolan dengan nomor HP baru tanpa harus menyimpan nomor di kontak ponsel terlebih dahulu.
 
 ---
 
 ## 🚀 Cara Menjalankan di Windows
 
-1. Di terminal folder `Josjis`:
+1. Jalankan update di direktori `Josjis`:
    ```bat
    git checkout . && git pull origin main
    ```
-2. Cukup double-click:
+2. Jalankan:
    ```bat
    start.bat
    ```
-3. Pilih nomor platform (atau langsung tekan **Enter** untuk WhatsApp).
-4. Login WhatsApp Web sekali (sesinya tersimpan permanen di profil lokal).
+   Script otomatis mengompilasi `Josjis.cs` menjadi `Josjis.exe`, menyalakan backend di latar belakang, dan meluncurkan aplikasi native.
+
+---
+
+## 📱 Tentang Riwayat Chat WhatsApp (Full History Sync)
+
+WhatsApp Multi-Device membagikan riwayat chat saat proses pairing awal (scan QR).
+- Jika ingin menyinkronkan seluruh riwayat lama dari HP:
+  Jalankan `reauth.bat` (atau `npm run reauth`), lalu scan QR Code. WhatsApp akan mengirimkan paket sinkronisasi riwayat pesan dan kontak lengkap.
+- Kontak yang baru atau belum ada di list bisa langsung dibuka menggunakan tombol **+ Nomor Baru**.

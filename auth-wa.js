@@ -21,7 +21,8 @@ async function linkWhatsApp() {
     auth: state,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: false,
-    browser: ['Ubuntu', 'Chrome', '124.0.0']
+    browser: ['Windows', 'Desktop', '10.0.22631'],
+    syncFullHistory: true
   });
 
   sock.ev.on('creds.update', saveCreds);

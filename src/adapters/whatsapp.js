@@ -270,7 +270,7 @@ class WhatsAppAdapter extends EventEmitter {
         auth: state,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: ['Ubuntu', 'Chrome', '124.0.0'],
+        browser: ['Windows', 'Desktop', '10.0.22631'],
         syncFullHistory: true
       });
 
@@ -564,6 +564,55 @@ class WhatsAppAdapter extends EventEmitter {
       return (a.name || '').localeCompare(b.name || '');
     });
     return list;
+  }
+
+  async resync() {
+    if (!this.sock || !this.isConnected) return false;
+    try {
+      if (this.sock.resyncAppState) {
+        await this.sock.resyncAppState(
+          ['critical_block', 'critical_unblock_low', 'regular_high', 'regular_low', 'regular'],
+          false
+        );
+      }
+      if (this.sock.groupFetchAllParticipating) {
+        const groups = await this.sock.groupFetchAllParticipating();
+        if (groups) {
+          for (const [id, meta] of Object.entries(groups)) {
+            const existing = this.contacts.get(id) || {};
+            const storedMsgs = this.messages.get(id) || [];
+            const ts = storedMsgs.length > 0
+              ? (storedMsgs[storedMsgs.length - 1].timestamp || 0)
+              : (existing.timestamp || 0);
+
+            this.contacts.set(id, {
+              ...existing,
+              jid: id,
+              name: meta.subject || existing.name || `Grup (${id.slice(0, 8)})`,
+              timestamp: ts,
+              isGroup: true
+            });
+          }
+        }
+      }
+      this.saveContactsCache();
+      this.emit('contacts_updated', this.getRecentChats());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  clearCache() {
+    this.contacts.clear();
+    this.messages.clear();
+    try {
+      if (fs.existsSync(this.cacheFile)) fs.unlinkSync(this.cacheFile);
+      if (fs.existsSync(this.messagesFile)) fs.unlinkSync(this.messagesFile);
+    } catch {
+      // ignore
+    }
+    this.emit('contacts_updated', []);
   }
 }
 

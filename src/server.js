@@ -11,15 +11,80 @@ function startWebServer(hub, port = 3821) {
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
 
-  // API info
+  // 1. REST API for Native C# Client & Web
   app.get('/api/status', (req, res) => {
     res.json({
       status: 'running',
-      channels: hub.channels,
-      activeChannel: hub.activeChannel
+      waConnected: hub.wa ? hub.wa.isConnected : false,
+      discordConnected: hub.discord ? hub.discord.isConnected : false,
+      activeChannel: hub.activeChannel,
+      channels: hub.channels || []
     });
   });
 
+  app.get('/api/channels', (req, res) => {
+    res.json(hub.channels || []);
+  });
+
+  app.get('/api/messages', (req, res) => {
+    const channelId = req.query.channelId || (hub.activeChannel ? hub.activeChannel.rawId : null);
+    const msgs = hub.getMessagesForChannel(channelId);
+    res.json(msgs || []);
+  });
+
+  app.post('/api/send', async (req, res) => {
+    try {
+      const text = (req.body.text || '').trim();
+      if (!text) return res.status(400).json({ error: 'Text required' });
+      await hub.sendCurrent(text);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/select', (req, res) => {
+    const channelId = req.body.channelId;
+    const found = hub.setActiveChannel(channelId);
+    res.json({ success: Boolean(found), activeChannel: hub.activeChannel });
+  });
+
+  app.post('/api/sendto', async (req, res) => {
+    try {
+      const target = req.body.target;
+      const text = req.body.text;
+      await hub.sendToNumber(target, text);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/resync', async (req, res) => {
+    try {
+      if (hub.wa && hub.wa.resync) {
+        await hub.wa.resync();
+      }
+      hub.refreshChannels();
+      res.json({ success: true, count: (hub.channels || []).length });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/clear_cache', (req, res) => {
+    try {
+      if (hub.wa && hub.wa.clearCache) {
+        hub.wa.clearCache();
+      }
+      hub.refreshChannels();
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // 2. WebSocket for live push
   const clients = new Set();
 
   function broadcast(payload) {
@@ -31,7 +96,6 @@ function startWebServer(hub, port = 3821) {
     }
   }
 
-  // Hub listeners to broadcast to all open web clients
   hub.on('message', (msg) => {
     broadcast({ type: 'message', data: msg });
   });
@@ -48,29 +112,22 @@ function startWebServer(hub, port = 3821) {
     broadcast({ type: 'platform_status', data: st });
   });
 
-  hub.on('wa_qr', (qr) => {
-    broadcast({ type: 'wa_qr', data: qr });
-  });
-
   wss.on('connection', (ws) => {
     clients.add(ws);
 
-    // Initial state push
     ws.send(JSON.stringify({
       type: 'init',
       data: {
         channels: hub.channels,
         activeChannel: hub.activeChannel,
         messages: hub.messageHistory,
-        waStatus: hub.wa ? hub.wa.isConnected : false,
-        discordStatus: hub.discord ? hub.discord.isConnected : false
+        waStatus: hub.wa ? hub.wa.isConnected : false
       }
     }));
 
     ws.on('message', async (raw) => {
       try {
         const action = JSON.parse(raw);
-
         if (action.type === 'send_message') {
           await hub.sendCurrent(action.text);
         } else if (action.type === 'select_channel') {
@@ -79,10 +136,7 @@ function startWebServer(hub, port = 3821) {
           await hub.sendToNumber(action.target, action.text);
         }
       } catch (err) {
-        ws.send(JSON.stringify({
-          type: 'error',
-          error: err.message
-        }));
+        ws.send(JSON.stringify({ type: 'error', error: err.message }));
       }
     });
 

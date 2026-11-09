@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "auth": "node auth-wa.js",
+    "reauth": "node -e \"const fs=require('fs'); fs.rmSync('auth/wa_session', {recursive:true, force:true});\" && node auth-wa.js",
     "stealth": "node index.js"
   },
   "keywords": [],
