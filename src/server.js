@@ -2,6 +2,27 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const { WebSocketServer } = require('ws');
+const QRCode = require('qrcode-terminal/vendor/QRCode');
+const QRErrorCorrectLevel = require('qrcode-terminal/vendor/QRCode/QRErrorCorrectLevel');
+
+function renderQrSvg(text) {
+  if (!text) return '';
+  const qr = new QRCode(-1, QRErrorCorrectLevel.L);
+  qr.addData(text);
+  qr.make();
+  const count = qr.getModuleCount();
+  const pad = 2;
+  const size = count + pad * 2;
+  let rects = '';
+  for (let r = 0; r < count; r++) {
+    for (let c = 0; c < count; c++) {
+      if (qr.isDark(r, c)) {
+        rects += `<rect x="${c + pad}" y="${r + pad}" width="1" height="1" fill="#0b0d10"/>`;
+      }
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#ffffff"/>${rects}</svg>`;
+}
 
 function startWebServer(hub, port = 3821) {
   const app = express();
@@ -73,6 +94,27 @@ function startWebServer(hub, port = 3821) {
     }
   });
 
+  app.get('/api/qr.svg', (req, res) => {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'no-store');
+    if (!hub.lastQR) {
+      return res.status(404).send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>');
+    }
+    res.send(renderQrSvg(hub.lastQR));
+  });
+
+  app.post('/api/reauth', async (req, res) => {
+    try {
+      hub.lastQR = null;
+      if (hub.wa && hub.wa.reauth) {
+        await hub.wa.reauth();
+      }
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post('/api/clear_cache', (req, res) => {
     try {
       if (hub.wa && hub.wa.clearCache) {
@@ -113,6 +155,10 @@ function startWebServer(hub, port = 3821) {
     broadcast({ type: 'platform_status', data: st });
   });
 
+  hub.on('wa_qr', (qr) => {
+    broadcast({ type: 'wa_qr', data: { qr } });
+  });
+
   wss.on('connection', (ws) => {
     clients.add(ws);
 
@@ -122,7 +168,8 @@ function startWebServer(hub, port = 3821) {
         channels: hub.channels,
         activeChannel: hub.activeChannel,
         messages: hub.messageHistory,
-        waStatus: hub.wa ? hub.wa.isConnected : false
+        waStatus: hub.wa ? hub.wa.isConnected : false,
+        qr: hub.lastQR || null
       }
     }));
 

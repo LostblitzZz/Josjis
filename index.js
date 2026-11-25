@@ -1,7 +1,11 @@
 require('dotenv').config();
 const path = require('path');
+const qrcode = require('qrcode-terminal');
 const ChatHub = require('./src/hub');
 const { startWebServer } = require('./src/server');
+const { startTerminalClient } = require('./src/terminalClient');
+
+const isCliMode = process.argv.includes('--cli');
 
 async function main() {
   const port = process.env.PORT || 3821;
@@ -12,17 +16,30 @@ async function main() {
     tiktokCookiePath: path.join(__dirname, 'auth/tiktok_cookies.json')
   });
 
-  console.log('================================================================');
-  console.log('            Josjis Desktop Hub (Stealth Multi-Chat)             ');
-  console.log('================================================================');
-  console.log(`[systemd] Desktop backend active on port ${port}`);
+  if (isCliMode) {
+    hub.on('wa_qr', (qr) => {
+      console.log('\n==================================================');
+      console.log(' SCAN QR WHATSAPP DI HP:');
+      console.log('==================================================\n');
+      qrcode.generate(qr, { small: true });
+    });
+    startTerminalClient(hub);
+  } else {
+    console.log('================================================================');
+    console.log('            Josjis Desktop Hub (Stealth Multi-Chat)             ');
+    console.log('================================================================');
+    console.log(`[systemd] Desktop backend active on port ${port}`);
+  }
 
   try {
     await startWebServer(hub, port);
-    console.log(`[systemd] Web / Desktop interface listening at http://localhost:${port}`);
-
+    if (!isCliMode) {
+      console.log(`[systemd] Web / Desktop interface listening at http://localhost:${port}`);
+    }
     await hub.init();
-    console.log('[systemd] WhatsApp & communication services initialized.');
+    if (!isCliMode) {
+      console.log('[systemd] WhatsApp & communication services initialized.');
+    }
   } catch (err) {
     console.error('Initialization error:', err.message);
   }

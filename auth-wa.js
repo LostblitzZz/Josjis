@@ -82,7 +82,7 @@ async function linkWhatsApp() {
       auth: state,
       logger: pino({ level: 'silent' }),
       printQRInTerminal: false,
-      browser: Browsers.windows('Chrome'),
+      browser: ['Windows', 'Desktop', '10.0.22631'],
       syncFullHistory: true
     });
     currentSock = sock;

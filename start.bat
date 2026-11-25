@@ -3,35 +3,17 @@ title Josjis Desktop Launcher
 cd /d "%~dp0"
 
 echo ====================================================================
-echo         Josjis Stealth Workspace - Native Borderless Desktop
+echo      Josjis Stealth Workspace - Black Discord Corner Client
 echo ====================================================================
 
 if exist "dist\josjis-wa.exe" (
-    echo [LAUNCH] Membuka Josjis WhatsApp Stealth ^(Native Rust Borderless^)...
+    echo [1/2] Membersihkan proses lama agar bebas bentrok sesi ^(440^)...
+    taskkill /F /IM node.exe >nul 2>&1
+    echo [2/2] Meluncurkan Josjis Corner Widget ^(Discord Dark + WA^)...
     start "" "dist\josjis-wa.exe"
     exit /b 0
 )
 
-set CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe
-if not exist "%CSC%" (
-    set CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe
-)
-
-if not exist "%CSC%" (
-    echo [ERROR] dist\josjis-wa.exe maupun csc.exe tidak ditemukan!
-    pause
-    exit /b 1
-)
-
-echo [1/2] Mengompilasi Josjis.exe dari Josjis.cs...
-"%CSC%" /target:winexe /optimize+ /out:Josjis.exe Josjis.cs
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Gagal mengompilasi Josjis.cs!
-    pause
-    exit /b 1
-)
-echo [OK] Josjis.exe siap digunakan!
-
-echo [2/2] Meluncurkan Josjis Native Desktop Hub...
-start "" Josjis.exe
-exit /b 0
+echo [ERROR] dist\josjis-wa.exe tidak ditemukan! Jalankan: git pull origin main
+pause
+exit /b 1

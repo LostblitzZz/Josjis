@@ -3,728 +3,612 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Josjis Desktop</title>
-  <!-- GitHub Favicon disguise -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='%23ffffff' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill-rule='evenodd' d='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z'%3E%3C/path%3E%3C/svg%3E">
+  <title>dev-workspace · Discord</title>
   <style>
+    :root {
+      --bg-black: #0a0b0e;
+      --bg-sidebar: #0f1116;
+      --bg-chat: #0b0d11;
+      --bg-hover: #171a22;
+      --bg-active: #1f2430;
+      --bg-input: #161920;
+      --border: #1d2028;
+      --text: #e4e6eb;
+      --text-muted: #7e8494;
+      --accent: #5865f2;
+      --accent-hover: #4752c4;
+      --ok: #23a55a;
+      --warn: #f0b232;
+      --danger: #da373c;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      user-select: none;
-    }
-    html, body {
-      height: 100%;
-      background-color: #0c1317;
-      color: #e9edef;
-      overflow: hidden;
-      transition: opacity 0.35s ease, filter 0.35s ease;
+      font-family: "gg sans", "Segoe UI", system-ui, -apple-system, sans-serif;
     }
 
-    /* Container */
-    #rootContainer {
+    html, body {
+      height: 100%;
+      width: 100%;
+      background: var(--bg-black);
+      color: var(--text);
+      overflow: hidden;
+      font-size: 12.5px;
+    }
+
+    .app-shell {
       display: flex;
       flex-direction: column;
       height: 100vh;
       width: 100vw;
+      background: var(--bg-black);
+      border: 1px solid #1b1e26;
     }
 
-    /* Top Control Bar */
-    .top-bar {
-      height: 42px;
-      background-color: #1f2c34;
+    /* 1. Sleek Top Titlebar (Draggable) */
+    .titlebar {
+      height: 28px;
+      background: #07080b;
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 12px;
-      border-bottom: 1px solid #2a3942;
-      font-size: 12px;
+      padding: 0 6px;
       flex-shrink: 0;
+      user-select: none;
     }
-    .top-left {
+
+    .tb-left {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
+      min-width: 0;
     }
-    .back-btn {
-      background: #2a3942;
-      border: none;
-      color: #e9edef;
-      padding: 4px 10px;
-      border-radius: 6px;
+
+    .tb-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--warn);
+      flex-shrink: 0;
+    }
+    .tb-dot.online { background: var(--ok); }
+    .tb-dot.err { background: var(--danger); }
+
+    .tb-brand {
       font-size: 11px;
-      cursor: pointer;
+      font-weight: 700;
+      color: #c9cdd6;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+
+    .tb-right {
       display: flex;
       align-items: center;
       gap: 4px;
+      flex-shrink: 0;
     }
-    .back-btn:hover {
-      background: #374248;
+
+    .tb-btn {
+      background: #14171f;
+      border: 1px solid #222632;
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 1px 6px;
+      height: 20px;
+      font-size: 10.5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s, color 0.12s;
     }
-    .top-title {
-      font-weight: 600;
-      color: #00a884;
-      font-size: 13px;
+    .tb-btn:hover { background: #202532; color: #fff; }
+    .tb-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    .tb-btn.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+    /* 2. Main Split Body */
+    .main-body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      position: relative;
     }
-    .top-right {
+
+    /* Left Channel Sidebar (Compact Discord Rail) */
+    .sidebar {
+      width: 142px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: width 0.15s ease;
+    }
+    .sidebar.collapsed {
+      width: 0;
+      overflow: hidden;
+      border-right: none;
+    }
+
+    .sb-top {
+      padding: 6px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .sb-search-row {
+      display: flex;
+      gap: 4px;
+    }
+
+    .sb-search {
+      flex: 1;
+      min-width: 0;
+      background: #07080b;
+      border: 1px solid #1e222b;
+      border-radius: 4px;
+      padding: 4px 6px;
+      color: var(--text);
+      font-size: 11px;
+      outline: none;
+    }
+    .sb-search:focus { border-color: var(--accent); }
+
+    .sb-icon-btn {
+      background: #171a22;
+      border: 1px solid #242834;
+      color: #c9cdd6;
+      border-radius: 4px;
+      width: 24px;
+      height: 24px;
+      font-size: 12px;
+      cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .opacity-control {
+    .sb-icon-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .filter-row {
+      display: flex;
+      gap: 3px;
+    }
+    .f-pill {
+      flex: 1;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      font-size: 10px;
+      padding: 2px 0;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .f-pill:hover { background: var(--bg-hover); color: #fff; }
+    .f-pill.active { background: var(--bg-active); color: #fff; font-weight: 600; border-color: #2c3140; }
+
+    .channel-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px;
+    }
+
+    .ch-item {
       display: flex;
       align-items: center;
       gap: 6px;
-      color: #8696a0;
-      font-size: 11px;
-    }
-    .opacity-slider {
-      width: 70px;
+      padding: 5px 6px;
+      border-radius: 4px;
       cursor: pointer;
-      accent-color: #00a884;
+      margin-bottom: 1px;
+      color: var(--text-muted);
     }
-    .stealth-btn {
-      background-color: #dc2626;
-      color: #ffffff;
-      border: none;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .stealth-btn:hover {
-      background-color: #b91c1c;
-    }
+    .ch-item:hover { background: var(--bg-hover); color: #dcdee4; }
+    .ch-item.active { background: var(--bg-active); color: #fff; font-weight: 600; }
 
-    /* ================================================= */
-    /* 1. PLATFORM SELECTOR VIEW                         */
-    /* ================================================= */
-    #viewSelector {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: #111b21;
-    }
-    .selector-title {
-      font-size: 20px;
-      font-weight: bold;
-      margin-bottom: 8px;
-      color: #e9edef;
-    }
-    .selector-subtitle {
-      font-size: 13px;
-      color: #8696a0;
-      margin-bottom: 28px;
-      text-align: center;
-    }
-    .platform-cards {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      width: 100%;
-      max-width: 360px;
-    }
-    .card {
-      background: #202c33;
-      border: 1px solid #2a3942;
-      border-radius: 12px;
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .card:hover {
-      background: #2a3942;
-      border-color: #00a884;
-      transform: translateY(-2px);
-    }
-    .card-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
+    .ch-hash {
+      color: #5b6273;
+      font-size: 12px;
+      font-weight: 700;
       flex-shrink: 0;
     }
-    .icon-wa { background: #00a884; color: white; }
-    .icon-dc { background: #5865f2; color: white; }
-    .icon-tk { background: #000000; border: 1px solid #fe2c55; color: #25f4ee; }
-    .card-info {
+    .ch-item.active .ch-hash { color: var(--accent); }
+
+    .ch-name {
       flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 11.5px;
     }
-    .card-name {
-      font-size: 15px;
-      font-weight: 600;
-      color: #e9edef;
+
+    .sb-footer {
+      padding: 5px 6px;
+      border-top: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
-    .card-desc {
-      font-size: 12px;
-      color: #8696a0;
-      margin-top: 3px;
-    }
-    .badge {
       font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-weight: bold;
+      color: var(--text-muted);
+      background: #0b0c10;
     }
-    .badge-ready { background: #005c4b; color: #25d366; }
-    .badge-standby { background: #374248; color: #aebac1; }
 
-    /* ================================================= */
-    /* 2. MAIN CHAT VIEW (WHATSAPP DESKTOP)              */
-    /* ================================================= */
-    #viewChat {
+    /* Right Chat Pane (Discord Black Style) */
+    .chat-pane {
       flex: 1;
-      display: none;
-      height: calc(100vh - 42px);
-    }
-    .sidebar {
-      width: 320px;
-      min-width: 260px;
-      background-color: #111b21;
-      border-right: 1px solid #222d34;
       display: flex;
       flex-direction: column;
-      height: 100%;
+      min-width: 0;
+      background: var(--bg-chat);
+      position: relative;
     }
-    .sidebar-search-bar {
-      padding: 8px 12px;
-      background-color: #111b21;
-      border-bottom: 1px solid #222d34;
-      display: flex;
-      gap: 8px;
-    }
-    .search-input {
-      flex: 1;
-      background: #202c33;
-      border: none;
-      border-radius: 8px;
-      padding: 6px 12px;
-      color: #e9edef;
-      font-size: 13px;
-      outline: none;
-    }
-    .filter-tabs {
-      display: flex;
-      gap: 6px;
-      padding: 6px 12px;
-      background: #111b21;
-      border-bottom: 1px solid #222d34;
-    }
-    .filter-btn {
-      background: #202c33;
-      border: none;
-      color: #8696a0;
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 12px;
-      cursor: pointer;
-    }
-    .filter-btn.active {
-      background: #005c4b;
-      color: #25d366;
-      font-weight: 600;
-    }
-    .chat-list {
-      flex: 1;
-      overflow-y: auto;
-    }
-    .chat-item {
+
+    .chat-header {
+      height: 34px;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      padding: 10px 14px;
+      justify-content: space-between;
+      background: #0d0f14;
+      flex-shrink: 0;
+    }
+
+    .ch-head-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .menu-toggle {
+      background: none;
+      border: 1px solid #222632;
+      color: #c9cdd6;
+      border-radius: 4px;
+      width: 22px;
+      height: 22px;
       cursor: pointer;
-      border-bottom: 1px solid #182229;
-      gap: 10px;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .chat-item:hover {
-      background-color: #202c33;
+    .menu-toggle:hover { background: var(--bg-hover); color: #fff; }
+
+    .active-title {
+      font-weight: 600;
+      font-size: 12.5px;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .chat-item.active {
-      background-color: #2a3942;
+
+    .ch-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
     }
-    .avatar {
-      width: 40px;
-      height: 40px;
+
+    .feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 10px 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Discord Flat Message Row */
+    .dc-msg {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 3px 6px;
+      border-radius: 4px;
+    }
+    .dc-msg:hover { background: rgba(255, 255, 255, 0.03); }
+
+    .dc-avatar {
+      width: 26px;
+      height: 26px;
       border-radius: 50%;
-      background: #6a7982;
+      background: #222634;
+      color: #c9cdd6;
+      font-size: 11px;
+      font-weight: 700;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: bold;
-      color: #fff;
-      font-size: 15px;
       flex-shrink: 0;
+      margin-top: 1px;
     }
-    .chat-info {
+    .dc-msg.is-me .dc-avatar {
+      background: #303982;
+      color: #e0e4ff;
+    }
+
+    .dc-content {
       flex: 1;
       min-width: 0;
     }
-    .chat-top {
+
+    .dc-meta {
       display: flex;
-      justify-content: space-between;
-      margin-bottom: 2px;
-    }
-    .chat-name {
-      font-size: 14px;
-      font-weight: 500;
-      color: #e9edef;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .chat-time {
-      font-size: 11px;
-      color: #8696a0;
-      flex-shrink: 0;
-    }
-    .chat-snippet {
-      font-size: 12px;
-      color: #8696a0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      align-items: baseline;
+      gap: 6px;
+      margin-bottom: 1px;
     }
 
-    /* Chat Conversation Area */
-    .chat-main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background-color: #0b141a;
-      background-image: radial-gradient(#182229 1px, transparent 1px);
-      background-size: 18px 18px;
-      height: 100%;
+    .dc-sender {
+      font-weight: 600;
+      font-size: 12px;
+      color: #a3b3ff;
     }
-    .chat-header {
-      height: 52px;
-      background-color: #202c33;
-      padding: 0 16px;
+    .dc-msg.is-me .dc-sender {
+      color: #7c8bff;
+    }
+
+    .dc-time {
+      font-size: 9.5px;
+      color: #5b6273;
+    }
+
+    .dc-text {
+      font-size: 12.5px;
+      line-height: 1.38;
+      color: #dcdee4;
+      word-break: break-word;
+      white-space: pre-wrap;
+      user-select: text;
+    }
+
+    .empty-hint {
+      margin: auto;
+      text-align: center;
+      color: var(--text-muted);
+      padding: 20px;
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
+
+    /* Input Bar */
+    .composer {
+      padding: 8px 10px;
+      background: var(--bg-chat);
+      border-top: 1px solid var(--border);
       display: flex;
+      gap: 6px;
       align-items: center;
-      gap: 12px;
-      border-left: 1px solid #222d34;
       flex-shrink: 0;
     }
-    .active-name {
-      font-size: 15px;
-      font-weight: 600;
-      color: #e9edef;
-    }
-    .active-status {
-      font-size: 11px;
-      color: #00a884;
-    }
-    .messages-area {
+
+    .msg-input {
       flex: 1;
-      overflow-y: auto;
-      padding: 16px 20px;
+      min-width: 0;
+      background: var(--bg-input);
+      border: 1px solid #232734;
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+    }
+    .msg-input:focus { border-color: var(--accent); }
+
+    .send-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      padding: 7px 10px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .send-btn:hover { background: var(--accent-hover); }
+
+    /* QR Pairing Overlay (Shown cleanly inside corner UI when unlinked) */
+    .qr-overlay {
+      position: absolute;
+      inset: 0;
+      background: #0a0b0e;
+      z-index: 40;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      text-align: center;
+      gap: 10px;
+    }
+    .qr-overlay.show { display: flex; }
+
+    .qr-box {
+      width: 176px;
+      height: 176px;
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+    }
+    .qr-box img { width: 100%; height: 100%; display: block; }
+
+    .qr-title { font-size: 13px; font-weight: 700; color: #fff; }
+    .qr-sub { font-size: 11px; color: var(--text-muted); max-width: 260px; line-height: 1.45; }
+
+    /* VS Code Disguise Overlay */
+    .code-disguise {
+      position: fixed;
+      inset: 28px 0 0 0;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11.5px;
+      line-height: 1.55;
+      padding: 12px;
+      z-index: 80;
+      display: none;
+      overflow: auto;
+    }
+    .code-disguise.show { display: block; }
+
+    /* New Number Modal */
+    .modal-bg {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      z-index: 90;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-bg.show { display: flex; }
+    .modal-card {
+      width: 100%;
+      max-width: 290px;
+      background: #12141a;
+      border: 1px solid #262b38;
+      border-radius: 8px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
-    .bubble {
-      max-width: 72%;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 13.5px;
-      line-height: 1.4;
-      word-wrap: break-word;
-      user-select: text;
-    }
-    .bubble.incoming {
-      align-self: flex-start;
-      background-color: #202c33;
-      color: #e9edef;
-      border-top-left-radius: 0;
-    }
-    .bubble.outgoing {
-      align-self: flex-end;
-      background-color: #005c4b;
-      color: #e9edef;
-      border-top-right-radius: 0;
-    }
-    .bubble-sender {
-      font-size: 11px;
-      font-weight: 600;
-      color: #53bdeb;
-      margin-bottom: 2px;
-    }
-    .bubble-meta {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 4px;
-      margin-top: 4px;
-      font-size: 10px;
-      color: #8696a0;
-    }
-    .bubble.outgoing .bubble-meta {
-      color: #aebac1;
-    }
-    .input-bar {
-      height: 54px;
-      background-color: #202c33;
-      padding: 8px 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-shrink: 0;
-    }
-    .message-input {
-      flex: 1;
-      background-color: #2a3942;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: #e9edef;
-      font-size: 13.5px;
+    .modal-card h4 { font-size: 13px; color: #fff; }
+    .modal-input {
+      background: #0a0b0e;
+      border: 1px solid #262b38;
+      border-radius: 5px;
+      padding: 7px 9px;
+      color: #fff;
+      font-size: 12px;
       outline: none;
-      user-select: text;
     }
-    .send-btn {
-      background-color: #00a884;
-      border: none;
-      border-radius: 50%;
-      width: 38px;
-      height: 38px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
 
-    /* ================================================= */
-    /* 3. DISCORD PLACEHOLDER VIEW                       */
-    /* ================================================= */
-    #viewDiscord {
-      flex: 1;
-      display: none;
-      background-color: #313338;
-      color: #dbdee1;
-      height: calc(100vh - 42px);
-    }
-    .discord-sidebar {
-      width: 220px;
-      background-color: #2b2d31;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      border-right: 1px solid #1f2023;
-    }
-    .discord-channel {
-      padding: 6px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      color: #949ba4;
-    }
-    .discord-channel.active {
-      background-color: #404249;
-      color: #fff;
-    }
-    .discord-main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 30px;
-      text-align: center;
-    }
-
-    /* ================================================= */
-    /* 4. TIKTOK PLACEHOLDER VIEW                        */
-    /* ================================================= */
-    #viewTiktok {
-      flex: 1;
-      display: none;
-      background-color: #121212;
-      color: #fff;
-      height: calc(100vh - 42px);
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      padding: 30px;
-      text-align: center;
-    }
-
-    /* ================================================= */
-    /* 5. STEALTH / PANIC OVERLAY (VS CODE DISGUISE)     */
-    /* ================================================= */
-    #panicScreen {
-      position: fixed;
-      inset: 0;
-      background-color: #1e1e1e;
-      z-index: 999999;
-      display: none;
-      flex-direction: column;
-      font-family: Consolas, "Courier New", monospace;
-      color: #d4d4d4;
-    }
-    .vscode-menu {
-      height: 30px;
-      background: #323233;
-      display: flex;
-      align-items: center;
-      padding: 0 10px;
-      font-size: 12px;
-      color: #cccccc;
-      gap: 15px;
-      border-bottom: 1px solid #252526;
-    }
-    .vscode-body {
-      flex: 1;
-      display: flex;
-    }
-    .vscode-sidebar {
-      width: 200px;
-      background: #252526;
-      border-right: 1px solid #1e1e1e;
-      padding: 10px;
-      font-size: 12px;
-    }
-    .tree-item {
-      padding: 4px 6px;
-      color: #cccccc;
-      border-radius: 3px;
-    }
-    .tree-item.active {
-      background: #37373d;
-      color: #ffffff;
-    }
-    .vscode-editor {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: #1e1e1e;
-    }
-    .vscode-tabs {
-      height: 35px;
-      background: #252526;
-      display: flex;
-      border-bottom: 1px solid #1e1e1e;
-    }
-    .tab {
-      padding: 8px 16px;
-      background: #1e1e1e;
-      color: #ffffff;
-      font-size: 12px;
-      border-right: 1px solid #252526;
-      border-top: 1px solid #007acc;
-    }
-    .code-content {
-      flex: 1;
-      padding: 16px;
-      font-size: 13px;
-      line-height: 1.6;
-      overflow-y: auto;
-    }
-    .kw { color: #569cd6; }
-    .fn { color: #dcdcaa; }
-    .str { color: #ce9178; }
-    .cm { color: #6a9955; font-style: italic; }
-    .type { color: #4ec9b0; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #232734; border-radius: 3px; }
   </style>
 </head>
 <body>
-
-  <div id="rootContainer">
-    <!-- Top Control Bar -->
-    <div class="top-bar">
-      <div class="top-left">
-        <button class="back-btn" id="btnBackPlatform" onclick="showPlatformSelector()" style="display: none;">
-          ⮌ Pilih Platform
-        </button>
-        <span class="top-title" id="platformTitle">Josjis Hub</span>
+  <div class="app-shell">
+    <!-- Top Borderless Drag Bar -->
+    <div class="titlebar" id="titlebar">
+      <div class="tb-left">
+        <span class="tb-dot" id="connDot" title="Status koneksi WA"></span>
+        <span class="tb-brand" id="brandLabel"># dev-ops</span>
       </div>
-      <div class="top-right">
-        <div class="opacity-control" title="Redup otomatis saat mouse tidak menyentuh layar">
-          <span>👻 Auto-Dim:</span>
-          <input type="range" id="opacitySlider" class="opacity-slider" min="10" max="90" value="20" oninput="updateIdleOpacity(this.value)">
-          <span id="opacityVal">20%</span>
-        </div>
-        <button class="stealth-btn" onclick="togglePanic()" title="Tekan Esc untuk sembunyikan">🚨 Stealth (Esc)</button>
+      <div class="tb-right">
+        <button class="tb-btn active" id="btnGhost" onclick="toggleGhost()" title="Ghost Auto-Transparency (OS 20%)">Ghost: ON</button>
+        <button class="tb-btn" id="btnGhostPct" onclick="cycleGhostPercent()" title="Ubah tingkat opacity saat redup">20%</button>
+        <button class="tb-btn active" id="btnPin" onclick="togglePin()" title="Selalu di atas layar">Pin</button>
+        <button class="tb-btn" id="btnCode" onclick="toggleDisguise()" title="Samarkan ke VS Code (F1)">Code</button>
+        <button class="tb-btn" onclick="ipcSend('minimize-window')" title="Minimize (Esc)">—</button>
+        <button class="tb-btn" onclick="ipcSend('maximize-window')" title="Maximize / Restore">□</button>
+        <button class="tb-btn danger" onclick="ipcSend('close-app')" title="Tutup">✕</button>
       </div>
     </div>
 
-    <!-- 1. Platform Selector -->
-    <div id="viewSelector">
-      <div class="selector-title">Pilih Platform Komunikasi</div>
-      <div class="selector-subtitle">Jalankan chat langsung di layar kecil dengan fitur auto-dimming stealth.</div>
-
-      <div class="platform-cards">
-        <!-- WhatsApp -->
-        <div class="card" onclick="openPlatform('whatsapp')">
-          <div class="card-icon icon-wa">💬</div>
-          <div class="card-info">
-            <div class="card-name">
-              <span>WhatsApp</span>
-              <span class="badge badge-ready">● Ready</span>
-            </div>
-            <div class="card-desc">Realtime chat, sinkron kontak & riwayat lengkap.</div>
+    <div class="main-body">
+      <!-- Left Channel Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sb-top">
+          <div class="sb-search-row">
+            <input type="text" class="sb-search" id="searchInput" placeholder="Cari chat..." oninput="renderChannels()">
+            <button class="sb-icon-btn" onclick="openNewChatModal()" title="Chat ke nomor baru">+</button>
+          </div>
+          <div class="filter-row">
+            <button class="f-pill active" id="fAll" onclick="setFilter('all')">All</button>
+            <button class="f-pill" id="fDm" onclick="setFilter('personal')">DM</button>
+            <button class="f-pill" id="fGrp" onclick="setFilter('groups')">Grp</button>
           </div>
         </div>
-
-        <!-- Discord -->
-        <div class="card" onclick="openPlatform('discord')">
-          <div class="card-icon icon-dc">🎮</div>
-          <div class="card-info">
-            <div class="card-name">
-              <span>Discord</span>
-              <span class="badge badge-standby">Placeholder</span>
-            </div>
-            <div class="card-desc">Bot token gateway, server channels & DM.</div>
+        <div class="channel-list" id="channelList"></div>
+        <div class="sb-footer">
+          <span id="waFootStatus">Menghubungkan...</span>
+          <div style="display:flex; gap:4px;">
+            <button class="tb-btn" style="height:18px; padding:0 5px;" onclick="triggerResync()" title="Sync Ulang">↻</button>
+            <button class="tb-btn" style="height:18px; padding:0 5px;" onclick="triggerReauth()" title="Scan QR Ulang">QR</button>
           </div>
         </div>
+      </aside>
 
-        <!-- TikTok DM -->
-        <div class="card" onclick="openPlatform('tiktok')">
-          <div class="card-icon icon-tk">🎵</div>
-          <div class="card-info">
-            <div class="card-name">
-              <span>TikTok DM</span>
-              <span class="badge badge-standby">Placeholder</span>
-            </div>
-            <div class="card-desc">Direct messaging via headless session cookie.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. WhatsApp Desktop View -->
-    <div id="viewChat">
-      <!-- Left Sidebar -->
-      <div class="sidebar">
-        <div class="sidebar-search-bar">
-          <input type="text" id="searchInput" class="search-input" placeholder="Cari kontak..." oninput="filterChats()">
-        </div>
-        <div class="filter-tabs">
-          <button class="filter-btn active" id="filterAll" onclick="setFilter('all')">Semua</button>
-          <button class="filter-btn" id="filterPersonal" onclick="setFilter('personal')">Pribadi</button>
-          <button class="filter-btn" id="filterGroups" onclick="setFilter('groups')">Grup</button>
-        </div>
-        <div class="chat-list" id="chatList">
-          <!-- Rendered contacts -->
-        </div>
-      </div>
-
-      <!-- Right Chat Area -->
-      <div class="chat-main">
+      <!-- Main Chat Area -->
+      <main class="chat-pane">
         <div class="chat-header">
-          <div class="avatar" id="activeAvatar">?</div>
-          <div>
-            <div class="active-name" id="activeName">Pilih Chat</div>
-            <div class="active-status" id="activeStatus">Terhubung ke WhatsApp</div>
+          <div class="ch-head-left">
+            <button class="menu-toggle" onclick="toggleSidebar()" title="Sembunyikan/tampilkan daftar kontak">☰</button>
+            <span class="active-title" id="activeTitle"># pilih-chat</span>
+          </div>
+          <div class="ch-head-actions">
+            <button class="tb-btn" onclick="openNewChatModal()" title="Kirim ke nomor baru">+ Nomor</button>
           </div>
         </div>
 
-        <div class="messages-area" id="messagesArea">
-          <div style="text-align: center; color: #8696a0; margin-top: 50px; font-size: 13px;">
-            Pilih salah satu kontak di sebelah kiri untuk melihat pesan.
+        <div class="feed" id="messagesFeed">
+          <div class="empty-hint">
+            Pilih kontak di kiri untuk mulai chat.<br>
+            Tekan <b>Esc</b> untuk sembunyikan cepat, atau <b>F1</b> untuk samaran VS Code.
           </div>
         </div>
 
-        <div class="input-bar">
-          <input type="text" id="messageInput" class="message-input" placeholder="Ketik pesan..." onkeydown="handleInputKey(event)">
-          <button class="send-btn" onclick="sendMessage()">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
-            </svg>
-          </button>
+        <div class="composer">
+          <input type="text" class="msg-input" id="msgInput" placeholder="Message #target..." onkeydown="onInputKey(event)">
+          <button class="send-btn" onclick="sendActive()">Send</button>
         </div>
-      </div>
-    </div>
 
-    <!-- 3. Discord Placeholder View -->
-    <div id="viewDiscord">
-      <div class="discord-sidebar">
-        <div style="font-weight: bold; font-size: 14px; color: #fff; margin-bottom: 8px;">Servers / DM</div>
-        <div class="discord-channel active"># general</div>
-        <div class="discord-channel"># dev-chat</div>
-        <div class="discord-channel"># announcements</div>
-      </div>
-      <div class="discord-main">
-        <div style="font-size: 40px; margin-bottom: 12px;">🎮</div>
-        <h3 style="color: #fff; margin-bottom: 8px;">Discord Gateway Module</h3>
-        <p style="font-size: 13px; color: #949ba4; max-width: 400px; line-height: 1.5; margin-bottom: 16px;">
-          Modul Discord siap dikonfigurasi. Masukkan <code>DISCORD_TOKEN</code> di file <code>.env</code> untuk menghubungkan bot ke server Discord kamu.
-        </p>
-        <span class="badge badge-standby">Status: Standby (Waiting for token)</span>
-      </div>
-    </div>
-
-    <!-- 4. TikTok Placeholder View -->
-    <div id="viewTiktok">
-      <div style="font-size: 40px; margin-bottom: 12px;">🎵</div>
-      <h3 style="color: #fff; margin-bottom: 8px;">TikTok Direct Messaging Module</h3>
-      <p style="font-size: 13px; color: #8696a0; max-width: 400px; line-height: 1.5; margin-bottom: 16px;">
-        Modul TikTok DM headless session. Masukkan cookie akun di <code>auth/tiktok_cookies.json</code> untuk mengaktifkan sinkronisasi DM.
-      </p>
-      <span class="badge badge-standby">Status: Standby (Session cookie required)</span>
-    </div>
-  </div>
-
-  <!-- Stealth / Panic Screen (VS Code Fullscreen) -->
-  <div id="panicScreen">
-    <div class="vscode-menu">
-      <span>File</span>
-      <span>Edit</span>
-      <span>Selection</span>
-      <span>View</span>
-      <span>Go</span>
-      <span>Run</span>
-      <span>Terminal</span>
-      <span>Help</span>
-      <span style="margin-left: auto; color: #666; cursor: pointer;" onclick="togglePanic()">(Tekan Esc untuk kembali)</span>
-    </div>
-    <div class="vscode-body">
-      <div class="vscode-sidebar">
-        <div style="font-weight: bold; margin-bottom: 8px; color: #999;">EXPLORER</div>
-        <div class="tree-item">📁 src</div>
-        <div class="tree-item">&nbsp;&nbsp;📁 controllers</div>
-        <div class="tree-item active">&nbsp;&nbsp;📄 server.ts</div>
-        <div class="tree-item">&nbsp;&nbsp;📄 database.prisma</div>
-        <div class="tree-item">📄 package.json</div>
-      </div>
-      <div class="vscode-editor">
-        <div class="vscode-tabs">
-          <div class="tab">server.ts <span style="font-size: 10px; margin-left: 6px;">✕</span></div>
+        <!-- Inline QR Pairing Overlay -->
+        <div class="qr-overlay" id="qrOverlay">
+          <div class="qr-title" id="qrTitle">Tautkan WhatsApp Sekali Saja</div>
+          <div class="qr-box" id="qrBox">
+            <span style="color:#111; font-size:11px;">Memuat QR...</span>
+          </div>
+          <div class="qr-sub" id="qrSub">
+            Buka WhatsApp di HP → <b>Perangkat Tertaut</b> → <b>Tautkan Perangkat</b> lalu scan QR ini.
+          </div>
+          <button class="tb-btn active" onclick="triggerReauth()">↻ Refresh QR</button>
         </div>
-        <div class="code-content">
-<pre><span class="cm">/**
- * Cluster Ingress Controller & Connection Pool Manager
- * Service: ingress-gw.prod-sea-01
- */</span>
-<span class="kw">import</span> express, { <span class="type">Request</span>, <span class="type">Response</span> } <span class="kw">from</span> <span class="str">'express'</span>;
-<span class="kw">import</span> { <span class="type">PrismaClient</span> } <span class="kw">from</span> <span class="str">'@prisma/client'</span>;
+      </main>
+    </div>
 
-<span class="kw">const</span> app = <span class="fn">express</span>();
-<span class="kw">const</span> prisma = <span class="kw">new</span> <span class="type">PrismaClient</span>();
-
-<span class="kw">export async function</span> <span class="fn">syncTelemetryCluster</span>(nodeId: <span class="type">string</span>): <span class="type">Promise</span>&lt;<span class="type">void</span>&gt; {
-  <span class="kw">const</span> session = <span class="kw">await</span> prisma.clusterNode.<span class="fn">findFirst</span>({
-    where: { nodeId, status: <span class="str">'ONLINE'</span> }
-  });
-  <span class="fn">console</span>.<span class="fn">log</span>(<span class="str">`[node-agent] Telemetry synced OK`</span>);
+    <!-- VS Code Camouflage Overlay -->
+    <div class="code-disguise" id="codeDisguise" onclick="toggleDisguise()">
+<pre style="color:#6a9955">// metrics-worker.ts — telemetry-agent [Visual Studio Code]</pre>
+<pre><span style="color:#569cd6">import</span> { ClusterPool } <span style="color:#569cd6">from</span> <span style="color:#ce9178">'@core/net'</span>;
+<span style="color:#569cd6">const</span> pool = <span style="color:#569cd6">new</span> <span style="color:#4ec9b0">ClusterPool</span>({ maxSockets: <span style="color:#b5cea8">32</span>, keepAlive: <span style="color:#569cd6">true</span> });
+<span style="color:#569cd6">export async function</span> <span style="color:#dcdcaa">flushTelemetry</span>() {
+  <span style="color:#569cd6">await</span> pool.<span style="color:#dcdcaa">sync</span>({ region: <span style="color:#ce9178">'ap-southeast-1'</span> });
+  <span style="color:#569cd6">return</span> { status: <span style="color:#ce9178">'OK'</span>, latencyMs: <span style="color:#b5cea8">12.4</span> };
 }
-</pre>
+<span style="color:#6a9955">// Klik di mana saja atau tekan F1 untuk kembali</span></pre>
+    </div>
+
+    <!-- New Phone Modal -->
+    <div class="modal-bg" id="newChatModal">
+      <div class="modal-card">
+        <h4>Kirim ke Nomor Baru</h4>
+        <input type="text" class="modal-input" id="newPhoneInput" placeholder="08123456789 / 628...">
+        <input type="text" class="modal-input" id="newTextInput" placeholder="Pesan pertama...">
+        <div class="modal-actions">
+          <button class="tb-btn" onclick="closeNewChatModal()">Batal</button>
+          <button class="tb-btn active" onclick="submitNewChat()">Kirim</button>
         </div>
       </div>
     </div>
@@ -732,288 +616,322 @@
 
   <script>
     let ws = null;
-    let allChannels = [];
+    let channels = [];
     let activeChannel = null;
-    let messageHistory = [];
+    let messageCache = [];
     let currentFilter = 'all';
-    let isPanic = false;
+    let waConnected = false;
 
-    // Auto-Dimming Opacity System
-    let idleOpacity = 0.20;
-    let idleTimer = null;
-    let isDimmed = false;
+    const GHOST_LEVELS = [20, 35, 50, 12];
+    let ghostIdx = 0;
+    let ghostEnabled = true;
+    let pinEnabled = true;
 
-    function updateIdleOpacity(val) {
-      idleOpacity = val / 100;
-      document.getElementById('opacityVal').innerText = `${val}%`;
-      if (isDimmed) {
-        document.body.style.opacity = idleOpacity;
+    function ipcSend(channel, data) {
+      try {
+        if (window.ipc && typeof window.ipc.postMessage === 'function') {
+          window.ipc.postMessage(data ? JSON.stringify({ channel, ...data }) : channel);
+        }
+      } catch (_) {}
+    }
+
+    function toggleGhost() {
+      ghostEnabled = !ghostEnabled;
+      const btn = document.getElementById('btnGhost');
+      btn.textContent = ghostEnabled ? 'Ghost: ON' : 'Ghost: OFF';
+      btn.classList.toggle('active', ghostEnabled);
+      ipcSend('set-ghost', { enabled: ghostEnabled, percent: GHOST_LEVELS[ghostIdx] });
+    }
+
+    function cycleGhostPercent() {
+      ghostIdx = (ghostIdx + 1) % GHOST_LEVELS.length;
+      const pct = GHOST_LEVELS[ghostIdx];
+      document.getElementById('btnGhostPct').textContent = pct + '%';
+      if (!ghostEnabled) toggleGhost();
+      else ipcSend('set-ghost', { enabled: true, percent: pct });
+    }
+
+    function togglePin() {
+      pinEnabled = !pinEnabled;
+      document.getElementById('btnPin').classList.toggle('active', pinEnabled);
+      ipcSend('toggle-pin');
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    }
+
+    function toggleDisguise() {
+      const el = document.getElementById('codeDisguise');
+      el.classList.toggle('show');
+      document.getElementById('btnCode').classList.toggle('active', el.classList.contains('show'));
+    }
+
+    // Draggable titlebar
+    document.getElementById('titlebar').addEventListener('mousedown', (e) => {
+      if (e.button === 0 && !e.target.closest('button')) {
+        ipcSend('drag-window');
       }
-    }
-
-    function setDimmed(dimmed) {
-      isDimmed = dimmed;
-      if (dimmed) {
-        document.body.style.opacity = idleOpacity;
-        document.body.style.filter = 'brightness(0.65)';
-      } else {
-        document.body.style.opacity = '1';
-        document.body.style.filter = 'none';
+    });
+    document.getElementById('titlebar').addEventListener('dblclick', (e) => {
+      if (!e.target.closest('button')) {
+        ipcSend('maximize-window');
       }
-    }
+    });
 
-    function resetIdleTimer() {
-      setDimmed(false);
-      clearTimeout(idleTimer);
-      // Auto-dim after 3.5 seconds of mouse inactivity
-      idleTimer = setTimeout(() => {
-        setDimmed(true);
-      }, 3500);
-    }
-
-    document.addEventListener('mousemove', resetIdleTimer);
-    document.addEventListener('mouseenter', () => setDimmed(false));
-    document.addEventListener('mouseleave', () => setDimmed(true));
-
-    // Platform Navigation
-    function showPlatformSelector() {
-      document.getElementById('viewSelector').style.display = 'flex';
-      document.getElementById('viewChat').style.display = 'none';
-      document.getElementById('viewDiscord').style.display = 'none';
-      document.getElementById('viewTiktok').style.display = 'none';
-      document.getElementById('btnBackPlatform').style.display = 'none';
-      document.getElementById('platformTitle').innerText = 'Josjis Hub';
-    }
-
-    function openPlatform(platform) {
-      document.getElementById('viewSelector').style.display = 'none';
-      document.getElementById('btnBackPlatform').style.display = 'flex';
-
-      if (platform === 'whatsapp') {
-        document.getElementById('viewChat').style.display = 'flex';
-        document.getElementById('viewDiscord').style.display = 'none';
-        document.getElementById('viewTiktok').style.display = 'none';
-        document.getElementById('platformTitle').innerText = '💬 WhatsApp Desktop';
-        renderChatList();
-      } else if (platform === 'discord') {
-        document.getElementById('viewChat').style.display = 'none';
-        document.getElementById('viewDiscord').style.display = 'flex';
-        document.getElementById('viewTiktok').style.display = 'none';
-        document.getElementById('platformTitle').innerText = '🎮 Discord Gateway';
-      } else if (platform === 'tiktok') {
-        document.getElementById('viewChat').style.display = 'none';
-        document.getElementById('viewDiscord').style.display = 'none';
-        document.getElementById('viewTiktok').style.display = 'flex';
-        document.getElementById('platformTitle').innerText = '🎵 TikTok DM';
-      }
-    }
-
-    // Filter tabs
     function setFilter(type) {
       currentFilter = type;
-      document.getElementById('filterAll').classList.toggle('active', type === 'all');
-      document.getElementById('filterPersonal').classList.toggle('active', type === 'personal');
-      document.getElementById('filterGroups').classList.toggle('active', type === 'groups');
-      renderChatList();
+      document.getElementById('fAll').classList.toggle('active', type === 'all');
+      document.getElementById('fDm').classList.toggle('active', type === 'personal');
+      document.getElementById('fGrp').classList.toggle('active', type === 'groups');
+      renderChannels();
     }
 
-    // WebSocket Client
+    function showQr(qrString, customTitle, customSub) {
+      const ov = document.getElementById('qrOverlay');
+      ov.classList.add('show');
+      if (customTitle) document.getElementById('qrTitle').textContent = customTitle;
+      if (customSub) document.getElementById('qrSub').innerHTML = customSub;
+
+      const box = document.getElementById('qrBox');
+      if (qrString) {
+        const img = document.createElement('img');
+        img.src = '/api/qr.svg?t=' + Date.now();
+        img.alt = 'WhatsApp QR';
+        box.replaceChildren(img);
+      }
+    }
+
+    function hideQr() {
+      document.getElementById('qrOverlay').classList.remove('show');
+    }
+
+    function setConnIndicator(stateText, dotClass) {
+      document.getElementById('waFootStatus').textContent = stateText;
+      const dot = document.getElementById('connDot');
+      dot.className = 'tb-dot ' + (dotClass || '');
+    }
+
     function connectWS() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(`${protocol}//${window.location.host}`);
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}`);
 
-      ws.onmessage = (event) => {
-        const payload = JSON.parse(event.data);
-
-        if (payload.type === 'init') {
-          allChannels = payload.data.channels || [];
-          activeChannel = payload.data.activeChannel;
-          messageHistory = payload.data.messages || [];
-          renderChatList();
-          renderActiveChat();
-        } else if (payload.type === 'channels_updated') {
-          allChannels = payload.data;
-          renderChatList();
-        } else if (payload.type === 'active_channel_changed') {
-          activeChannel = payload.data;
-          renderChatList();
-          renderActiveChat();
-        } else if (payload.type === 'message') {
-          messageHistory.push(payload.data);
-          if (activeChannel && payload.data.channelId === activeChannel.rawId) {
-            appendMessageBubble(payload.data);
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'init') {
+          channels = msg.data.channels || [];
+          activeChannel = msg.data.activeChannel || null;
+          messageCache = msg.data.messages || [];
+          waConnected = Boolean(msg.data.waStatus);
+          if (waConnected) {
+            hideQr();
+            setConnIndicator('Online', 'online');
+          } else if (msg.data.qr) {
+            setConnIndicator('Scan QR', '');
+            showQr(msg.data.qr);
           }
-          renderChatList();
-        } else if (payload.type === 'platform_status') {
-          if (payload.data.platform === 'whatsapp') {
-            document.getElementById('activeStatus').innerText =
-              payload.data.status === 'connected' ? '● Terhubung ke WhatsApp' : `[WA: ${payload.data.status}]`;
+          renderChannels();
+          loadActiveMessages();
+        } else if (msg.type === 'channels_updated') {
+          channels = msg.data || [];
+          renderChannels();
+        } else if (msg.type === 'active_channel_changed') {
+          activeChannel = msg.data;
+          renderChannels();
+          loadActiveMessages();
+        } else if (msg.type === 'message') {
+          messageCache.push(msg.data);
+          if (activeChannel && msg.data.channelId === activeChannel.rawId) {
+            appendMessage(msg.data);
+          }
+          renderChannels();
+        } else if (msg.type === 'wa_qr') {
+          waConnected = false;
+          setConnIndicator('Scan QR', '');
+          showQr(msg.data && msg.data.qr, 'Tautkan WhatsApp Sekali Saja', 'Buka WhatsApp di HP → <b>Perangkat Tertaut</b> → <b>Tautkan Perangkat</b> lalu scan QR ini.');
+        } else if (msg.type === 'platform_status' && msg.data.platform === 'whatsapp') {
+          if (msg.data.status === 'connected') {
+            waConnected = true;
+            hideQr();
+            setConnIndicator('Online', 'online');
+          } else if (msg.data.status === 'conflict') {
+            waConnected = false;
+            setConnIndicator('Konflik 440', 'err');
+            showQr(null, 'Sesi Bentrok (440)', 'Ada proses Node/WA lain berjalan dengan sesi yang sama. Tutup lalu klik Refresh QR.');
+          } else if (msg.data.status === 'qr_timeout') {
+            waConnected = false;
+            setConnIndicator('QR Timeout', '');
+            showQr(null, 'QR Kedaluwarsa', 'Klik tombol <b>Refresh QR</b> di bawah saat siap melakukan scan.');
+          } else {
+            waConnected = false;
+            setConnIndicator(msg.data.reconnecting ? 'Reconnect...' : 'Terputus', '');
           }
         }
       };
 
-      ws.onclose = () => {
-        setTimeout(connectWS, 2000);
-      };
+      ws.onclose = () => setTimeout(connectWS, 2000);
     }
 
-    function renderChatList() {
-      const container = document.getElementById('chatList');
-      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    function renderChannels() {
+      const el = document.getElementById('channelList');
+      const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
 
-      const filtered = allChannels.filter(c => {
+      const filtered = channels.filter(c => {
         if (c.platform !== 'whatsapp') return false;
-
         const isGrp = c.isGroup || (c.displayName && c.displayName.startsWith('[Grup]'));
         if (currentFilter === 'personal' && isGrp) return false;
         if (currentFilter === 'groups' && !isGrp) return false;
-
-        if (!query) return true;
-        return c.displayName.toLowerCase().includes(query) || (c.rawId && c.rawId.includes(query));
+        if (!q) return true;
+        return (c.displayName || '').toLowerCase().includes(q) || (c.rawId || '').includes(q);
       });
 
       if (filtered.length === 0) {
-        container.innerHTML = `
-          <div style="padding: 24px; text-align: center; color: #8696a0; font-size: 13px;">
-            Belum ada chat yang cocok.
-          </div>`;
+        el.innerHTML = '<div style="padding:12px; color:#5b6273; font-size:11px; text-align:center;">Belum ada chat.</div>';
         return;
       }
 
-      container.innerHTML = filtered.map(c => {
-        const isActive = activeChannel && activeChannel.id === c.id;
-        const cleanName = c.displayName;
-        const initial = cleanName.replace('[Grup] ', '').charAt(0).toUpperCase();
-
-        const lastMsg = messageHistory.slice().reverse().find(m => m.channelId === c.rawId);
-        const snippet = lastMsg ? (lastMsg.isMe ? 'Kamu: ' : '') + lastMsg.text : (c.lastMessage || 'Buka chat...');
-
-        let timeStr = '';
-        if (c.timestamp && c.timestamp > 0) {
-          const d = new Date(c.timestamp);
-          const isToday = new Date().toDateString() === d.toDateString();
-          timeStr = isToday
-            ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : `${d.getDate()}/${d.getMonth() + 1}`;
-        }
-
+      el.innerHTML = filtered.slice(0, 80).map(c => {
+        const isAct = activeChannel && activeChannel.id === c.id;
+        const clean = (c.displayName || '').replace(/^\[Grup\]\s*/, '');
+        const prefix = c.isGroup ? '&' : '#';
         return `
-          <div class="chat-item ${isActive ? 'active' : ''}" onclick="selectChat('${c.id}')">
-            <div class="avatar">${initial}</div>
-            <div class="chat-info">
-              <div class="chat-top">
-                <span class="chat-name">${escapeHtml(cleanName)}</span>
-                <span class="chat-time">${timeStr}</span>
-              </div>
-              <div class="chat-snippet">${escapeHtml(snippet)}</div>
-            </div>
+          <div class="ch-item ${isAct ? 'active' : ''}" onclick="selectChannel('${escapeHtml(c.id)}')">
+            <span class="ch-hash">${prefix}</span>
+            <span class="ch-name">${escapeHtml(clean)}</span>
           </div>
         `;
       }).join('');
     }
 
-    function selectChat(channelId) {
+    function selectChannel(channelId) {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'select_channel', channelId }));
       }
-    }
-
-    function renderActiveChat() {
-      if (!activeChannel) return;
-
-      const cleanName = activeChannel.displayName;
-      document.getElementById('activeName').innerText = cleanName;
-      document.getElementById('activeAvatar').innerText = cleanName.replace('[Grup] ', '').charAt(0).toUpperCase();
-
-      const area = document.getElementById('messagesArea');
-      area.innerHTML = '';
-
-      const relevant = messageHistory.filter(m => m.channelId === activeChannel.rawId);
-      if (relevant.length === 0) {
-        area.innerHTML = `<div style="text-align: center; color: #8696a0; margin-top: 40px; font-size: 13px;">Belum ada pesan sebelumnya. Ketik di bawah untuk mulai kirim.</div>`;
-      } else {
-        relevant.forEach(appendMessageBubble);
+      if (window.innerWidth <= 430) {
+        document.getElementById('sidebar').classList.add('collapsed');
       }
     }
 
-    function appendMessageBubble(msg) {
-      const area = document.getElementById('messagesArea');
-      const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const bubble = document.createElement('div');
-      bubble.className = `bubble ${msg.isMe ? 'outgoing' : 'incoming'}`;
-
-      let senderHtml = '';
-      if (!msg.isMe && msg.sender) {
-        senderHtml = `<div class="bubble-sender">${escapeHtml(msg.sender)}</div>`;
-      }
-
-      bubble.innerHTML = `
-        ${senderHtml}
-        <div>${escapeHtml(msg.text)}</div>
-        <div class="bubble-meta">
-          <span>${time}</span>
-          ${msg.isMe ? '<span>✓✓</span>' : ''}
-        </div>
-      `;
-
-      area.appendChild(bubble);
-      area.scrollTop = area.scrollHeight;
-    }
-
-    function sendMessage() {
-      const input = document.getElementById('messageInput');
-      const text = input.value.trim();
-      if (!text) return;
+    async function loadActiveMessages() {
+      const titleEl = document.getElementById('activeTitle');
+      const inputEl = document.getElementById('msgInput');
+      const feed = document.getElementById('messagesFeed');
 
       if (!activeChannel) {
-        alert('Pilih kontak tujuan di sebelah kiri terlebih dahulu!');
+        titleEl.textContent = '# pilih-chat';
         return;
       }
 
+      const clean = (activeChannel.displayName || '').replace(/^\[Grup\]\s*/, '');
+      titleEl.textContent = `# ${clean}`;
+      inputEl.placeholder = `Message #${clean}`;
+
+      try {
+        const res = await fetch('/api/messages?channelId=' + encodeURIComponent(activeChannel.rawId));
+        const list = await res.json();
+        feed.innerHTML = '';
+        if (!list || list.length === 0) {
+          feed.innerHTML = '<div class="empty-hint">Belum ada riwayat pesan tersimpan di cache lokal.</div>';
+        } else {
+          list.slice(-100).forEach(appendMessage);
+        }
+      } catch {
+        const local = messageCache.filter(m => m.channelId === activeChannel.rawId);
+        feed.innerHTML = '';
+        local.forEach(appendMessage);
+      }
+    }
+
+    function appendMessage(msg) {
+      const feed = document.getElementById('messagesFeed');
+      const hint = feed.querySelector('.empty-hint');
+      if (hint) hint.remove();
+
+      const row = document.createElement('div');
+      row.className = 'dc-msg' + (msg.isMe ? ' is-me' : '');
+
+      const sender = msg.isMe ? 'You' : (msg.sender || 'User');
+      const initial = sender.charAt(0).toUpperCase() || '?';
+      const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      row.innerHTML = `
+        <div class="dc-avatar">${escapeHtml(initial)}</div>
+        <div class="dc-content">
+          <div class="dc-meta">
+            <span class="dc-sender">${escapeHtml(sender)}</span>
+            <span class="dc-time">${escapeHtml(time)}</span>
+          </div>
+          <div class="dc-text">${escapeHtml(msg.text || '')}</div>
+        </div>
+      `;
+
+      feed.appendChild(row);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function sendActive() {
+      const inp = document.getElementById('msgInput');
+      const text = (inp.value || '').trim();
+      if (!text) return;
+      if (!activeChannel) {
+        alert('Pilih chat dulu di panel kiri.');
+        return;
+      }
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'send_message', text }));
-        input.value = '';
+        inp.value = '';
       }
     }
 
-    function handleInputKey(e) {
+    function onInputKey(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+        sendActive();
       }
     }
 
-    function filterChats() {
-      renderChatList();
+    function openNewChatModal() {
+      document.getElementById('newChatModal').classList.add('show');
+      document.getElementById('newPhoneInput').focus();
+    }
+    function closeNewChatModal() {
+      document.getElementById('newChatModal').classList.remove('show');
+    }
+    async function submitNewChat() {
+      const target = document.getElementById('newPhoneInput').value.trim();
+      const text = document.getElementById('newTextInput').value.trim();
+      if (!target || !text) return;
+      await fetch('/api/sendto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, text })
+      });
+      document.getElementById('newPhoneInput').value = '';
+      document.getElementById('newTextInput').value = '';
+      closeNewChatModal();
     }
 
-    // Stealth / Panic Mode (VS Code)
-    function togglePanic() {
-      isPanic = !isPanic;
-      const panic = document.getElementById('panicScreen');
-      if (isPanic) {
-        panic.style.display = 'flex';
-        document.title = 'server.ts - backend-services - Visual Studio Code';
-      } else {
-        panic.style.display = 'none';
-        document.title = 'PR #412: Optimize database connection pool · Pull Request #412';
-      }
+    async function triggerResync() {
+      setConnIndicator('Syncing...', '');
+      await fetch('/api/resync', { method: 'POST' });
+      setConnIndicator(waConnected ? 'Online' : 'Scan QR', waConnected ? 'online' : '');
+    }
+
+    async function triggerReauth() {
+      setConnIndicator('Reset QR...', '');
+      showQr(null, 'Menyiapkan QR Baru...', 'Menghubungkan ke server WhatsApp...');
+      await fetch('/api/reauth', { method: 'POST' });
     }
 
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        togglePanic();
+      if (e.key === 'F1') {
+        e.preventDefault();
+        toggleDisguise();
       }
     });
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     }
 
     connectWS();

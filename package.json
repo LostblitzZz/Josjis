@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "cli": "node index.js --cli",
     "auth": "node auth-wa.js",
     "reauth": "node -e \"const fs=require('fs'); fs.rmSync('auth/wa_session', {recursive:true, force:true});\" && node auth-wa.js",
     "stealth": "node index.js"

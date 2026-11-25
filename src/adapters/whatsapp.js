@@ -298,7 +298,7 @@ class WhatsAppAdapter extends EventEmitter {
         auth: state,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: Browsers.windows('Chrome'),
+        browser: ['Windows', 'Desktop', '10.0.22631'],
         syncFullHistory: true
       });
       this.sock = sock;
@@ -310,6 +310,7 @@ class WhatsAppAdapter extends EventEmitter {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
+          this.qrTimeoutCount = (this.qrTimeoutCount || 0) + 1;
           this.emit('qr', qr);
         }
 
@@ -319,10 +320,15 @@ class WhatsAppAdapter extends EventEmitter {
           const statusCode = lastDisconnect?.error?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === DisconnectReason.badSession;
           const isReplaced = statusCode === DisconnectReason.connectionReplaced;
-          const shouldReconnect = !isLoggedOut && !isReplaced;
+          const isQrTimedOut = statusCode === DisconnectReason.timedOut && !this.hasCredsMe();
+          const shouldReconnect = !isReplaced && !isQrTimedOut;
+
+          if (isLoggedOut) {
+            try { fs.rmSync(this.authDir, { recursive: true, force: true }); } catch {}
+          }
 
           this.emit('status', {
-            status: isReplaced ? 'conflict' : 'disconnected',
+            status: isReplaced ? 'conflict' : (isQrTimedOut ? 'qr_timeout' : (isLoggedOut ? 'logged_out' : 'disconnected')),
             reconnecting: shouldReconnect,
             reason: statusCode
           });
@@ -638,6 +644,28 @@ class WhatsAppAdapter extends EventEmitter {
     } catch {
       return false;
     }
+  }
+
+  hasCredsMe() {
+    try {
+      const credsPath = path.join(this.authDir, 'creds.json');
+      if (!fs.existsSync(credsPath)) return false;
+      const data = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+      return Boolean(data && data.me && data.me.id);
+    } catch {
+      return false;
+    }
+  }
+
+  async reauth() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.cleanupSocket();
+    this.isConnected = false;
+    try { fs.rmSync(this.authDir, { recursive: true, force: true }); } catch {}
+    await this.start();
   }
 
   clearCache() {

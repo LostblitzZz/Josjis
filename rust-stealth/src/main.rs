@@ -2,13 +2,16 @@
 
 use std::env;
 use std::ffi::c_void;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+use std::net::{SocketAddr, TcpStream};
+use std::os::windows::process::CommandExt;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU8, Ordering};
 use std::thread;
 use std::time::Duration;
 
 use tao::{
-    dpi::LogicalSize,
+    dpi::{LogicalSize, PhysicalPosition},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder},
     platform::windows::WindowExtWindows,
@@ -19,12 +22,33 @@ use wry::{NewWindowResponse, PermissionKind, PermissionResponse, WebContext, Web
 type HWND = *mut c_void;
 type BOOL = i32;
 
+const GWL_EXSTYLE: i32 = -20;
+const WS_EX_LAYERED: isize = 0x80000;
+const LWA_ALPHA: u32 = 0x2;
 const SW_HIDE: i32 = 0;
 const SW_SHOW: i32 = 5;
 const SW_RESTORE: i32 = 9;
 const VK_ESCAPE: i32 = 0x1B;
 const VK_Q: i32 = 0x51;
 const VK_MENU: i32 = 0x12; // Alt key
+const SPI_GETWORKAREA: u32 = 0x0030;
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[repr(C)]
+#[derive(Default, Copy, Clone)]
+struct POINT {
+    x: i32,
+    y: i32,
+}
+
+#[repr(C)]
+#[derive(Default, Copy, Clone)]
+struct RECT {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
 
 #[link(name = "user32")]
 extern "system" {
@@ -32,6 +56,13 @@ extern "system" {
     fn SetForegroundWindow(hWnd: HWND) -> BOOL;
     fn GetAsyncKeyState(vKey: i32) -> i16;
     fn GetForegroundWindow() -> HWND;
+    fn IsIconic(hWnd: HWND) -> BOOL;
+    fn GetCursorPos(lpPoint: *mut POINT) -> BOOL;
+    fn GetWindowRect(hWnd: HWND, lpRect: *mut RECT) -> BOOL;
+    fn GetWindowLongPtrW(hWnd: HWND, nIndex: i32) -> isize;
+    fn SetWindowLongPtrW(hWnd: HWND, nIndex: i32, dwNewLong: isize) -> isize;
+    fn SetLayeredWindowAttributes(hwnd: HWND, crKey: u32, bAlpha: u8, dwFlags: u32) -> BOOL;
+    fn SystemParametersInfoW(uiAction: u32, uiParam: u32, pvParam: *mut RECT, fWinIni: u32) -> BOOL;
 }
 
 #[link(name = "shell32")]
@@ -70,14 +101,15 @@ enum UserEvent {
     Maximize,
     Close,
     Drag,
-    ToggleMini,
     TogglePin,
-    Navigate(String),
+    ApplyAlpha(u8),
 }
 
 static APP_HWND: AtomicIsize = AtomicIsize::new(0);
 static IS_HIDDEN: AtomicBool = AtomicBool::new(false);
 static IS_RUNNING: AtomicBool = AtomicBool::new(true);
+static GHOST_ENABLED: AtomicBool = AtomicBool::new(true);
+static GHOST_PERCENT: AtomicU8 = AtomicU8::new(20);
 
 fn toggle_boss_key() {
     let hwnd = APP_HWND.load(Ordering::SeqCst) as HWND;
@@ -98,253 +130,225 @@ fn toggle_boss_key() {
     }
 }
 
-const STEALTH_INIT_SCRIPT: &str = r#"
-(function() {
-  if (window.__JOSJIS_STEALTH_INIT__) return;
-  window.__JOSJIS_STEALTH_INIT__ = true;
-
-  var ghostEnabled = false;
-  var ghostAlpha = '0.14';
-  var isMini = false;
-  var isPinned = false;
-  var cursorInside = true;
-
-  function postIPC(payload) {
-    try {
-      if (window.ipc && typeof window.ipc.postMessage === 'function') {
-        window.ipc.postMessage(typeof payload === 'string' ? payload : JSON.stringify(payload));
-      }
-    } catch (_) {}
-  }
-
-  function applyGhostState() {
-    var root = document.documentElement;
-    if (!root) return;
-    root.style.transition = 'opacity 0.22s ease';
-    if (ghostEnabled && !cursorInside) {
-      root.style.opacity = ghostAlpha;
-    } else {
-      root.style.opacity = '1';
+fn apply_window_alpha(hwnd: HWND, alpha: u8) {
+    if hwnd.is_null() {
+        return;
     }
-  }
-
-  function ensureLayoutPadding() {
-    var body = document.body;
-    if (!body) return;
-    if (body.style.marginTop !== '30px') {
-      body.style.marginTop = '30px';
+    unsafe {
+        let cur = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if alpha >= 255 {
+            if (cur & WS_EX_LAYERED) != 0 {
+                SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, cur & !WS_EX_LAYERED);
+            }
+        } else {
+            if (cur & WS_EX_LAYERED) == 0 {
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, cur | WS_EX_LAYERED);
+            }
+            SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+        }
     }
-    if (body.style.height !== 'calc(100vh - 30px)') {
-      body.style.height = 'calc(100vh - 30px)';
+}
+
+fn is_port_open(port: u16) -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
+}
+
+fn find_repo_dir() -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.to_path_buf());
+            if let Some(parent) = dir.parent() {
+                candidates.push(parent.to_path_buf());
+            }
+        }
     }
-    var app = document.getElementById('app');
-    if (app && app.style.height !== '100%') {
-      app.style.height = '100%';
+    if let Ok(cwd) = env::current_dir() {
+        candidates.push(cwd.clone());
+        if let Some(parent) = cwd.parent() {
+            candidates.push(parent.to_path_buf());
+        }
     }
-  }
+    for c in candidates {
+        if c.join("index.js").exists() && c.join("package.json").exists() {
+            return Some(c);
+        }
+    }
+    None
+}
 
-  function makeBtn(label, title, bg, fg) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    if (title) b.title = title;
-    b.style.background = bg || '#1f2c34';
-    b.style.color = fg || '#d1d7db';
-    b.style.border = '1px solid #2a3942';
-    b.style.borderRadius = '4px';
-    b.style.padding = '2px 7px';
-    b.style.fontSize = '11px';
-    b.style.fontFamily = 'Segoe UI, system-ui, sans-serif';
-    b.style.cursor = 'pointer';
-    b.style.lineHeight = '16px';
-    b.style.height = '22px';
-    b.style.display = 'inline-flex';
-    b.style.alignItems = 'center';
-    b.style.justifyContent = 'center';
-    b.style.userSelect = 'none';
-    b.addEventListener('mousedown', function(e) { e.stopPropagation(); });
-    return b;
-  }
+fn spawn_local_backend(repo_dir: &Path) -> Option<Child> {
+    Command::new("node")
+        .arg("index.js")
+        .current_dir(repo_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .ok()
+}
 
-  function injectBar() {
-    if (document.getElementById('josjis-stealth-bar')) return;
-    var root = document.documentElement;
-    if (!root) return;
+fn parse_ghost_ipc(body: &str) {
+    if body.contains("\"enabled\":false") {
+        GHOST_ENABLED.store(false, Ordering::SeqCst);
+    } else if body.contains("\"enabled\":true") {
+        GHOST_ENABLED.store(true, Ordering::SeqCst);
+    }
+    if let Some(pos) = body.find("\"percent\":") {
+        let rest = &body[pos + 10..];
+        let digits: String = rest
+            .chars()
+            .skip_while(|c| !c.is_ascii_digit())
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        if let Ok(val) = digits.parse::<u8>() {
+            GHOST_PERCENT.store(val.clamp(10, 80), Ordering::SeqCst);
+        }
+    }
+}
 
-    var bar = document.createElement('div');
-    bar.id = 'josjis-stealth-bar';
-    bar.style.position = 'fixed';
-    bar.style.top = '0';
-    bar.style.left = '0';
-    bar.style.right = '0';
-    bar.style.height = '30px';
-    bar.style.background = '#111b21';
-    bar.style.borderBottom = '1px solid #222e35';
-    bar.style.display = 'flex';
-    bar.style.alignItems = 'center';
-    bar.style.justifyContent = 'space-between';
-    bar.style.padding = '0 8px';
-    bar.style.zIndex = '2147483647';
-    bar.style.fontFamily = 'Segoe UI, system-ui, sans-serif';
-    bar.style.userSelect = 'none';
-    bar.style.boxSizing = 'border-box';
+const LOADING_HTML: &str = r#"<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<style>
+  html, body { height: 100%; margin: 0; background: #0a0b0e; color: #c9cdd6; font-family: "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #1b1e26; box-sizing: border-box; }
+  .bar { position: fixed; top: 0; left: 0; right: 0; height: 28px; background: #07080b; border-bottom: 1px solid #1d2028; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; font-size: 11px; user-select: none; }
+  .btn { background: #14171f; border: 1px solid #222632; color: #9ea4b3; border-radius: 4px; padding: 1px 6px; cursor: pointer; font-size: 10.5px; }
+  .card { text-align: center; padding: 20px; max-width: 310px; }
+  .spinner { width: 24px; height: 24px; border: 2px solid #232734; border-top-color: #5865f2; border-radius: 50%; margin: 0 auto 12px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="bar" onmousedown="if(event.button===0 && !event.target.closest('button')) window.ipc.postMessage('drag-window')">
+    <span># dev-workspace</span>
+    <button class="btn" onclick="window.ipc.postMessage('close-app')">✕</button>
+  </div>
+  <div class="card">
+    <div class="spinner"></div>
+    <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:6px;">Menghubungkan Josjis Engine...</div>
+    <div style="font-size:11px;color:#7e8494;">Menyiapkan antarmuka WhatsApp mode Discord dark.</div>
+  </div>
+  <script>
+    async function poll() {
+      try {
+        const r = await fetch('http://127.0.0.1:3821/api/status');
+        if (r.ok) { window.location.replace('http://127.0.0.1:3821/'); return; }
+      } catch (_) {}
+      setTimeout(poll, 450);
+    }
+    setTimeout(poll, 350);
+  </script>
+</body>
+</html>"#;
 
-    // Left: Brand + Platform quick pills
-    var left = document.createElement('div');
-    left.style.display = 'flex';
-    left.style.alignItems = 'center';
-    left.style.gap = '6px';
-
-    var brand = document.createElement('span');
-    brand.textContent = '⚡ JOSJIS WA';
-    brand.style.color = '#00a884';
-    brand.style.fontWeight = '700';
-    brand.style.fontSize = '11px';
-    brand.style.letterSpacing = '0.4px';
-    brand.style.marginRight = '4px';
-    left.appendChild(brand);
-
-    var host = (window.location && window.location.hostname) || '';
-    var btnWa = makeBtn('WA', 'WhatsApp Web', host.indexOf('whatsapp') >= 0 ? '#005c4b' : '#1f2c34', '#e9edef');
-    var btnDc = makeBtn('DC', 'Discord', host.indexOf('discord') >= 0 ? '#5865f2' : '#1f2c34', '#e9edef');
-    var btnTt = makeBtn('TikTok', 'TikTok DM', host.indexOf('tiktok') >= 0 ? '#fe2c55' : '#1f2c34', '#e9edef');
-
-    btnWa.addEventListener('click', function() { postIPC({ channel: 'navigate', url: 'https://web.whatsapp.com' }); });
-    btnDc.addEventListener('click', function() { postIPC({ channel: 'navigate', url: 'https://discord.com/app' }); });
-    btnTt.addEventListener('click', function() { postIPC({ channel: 'navigate', url: 'https://www.tiktok.com/messages' }); });
-
-    left.appendChild(btnWa);
-    left.appendChild(btnDc);
-    left.appendChild(btnTt);
-
-    // Right: Stealth controls + OS Window controls
-    var right = document.createElement('div');
-    right.style.display = 'flex';
-    right.style.alignItems = 'center';
-    right.style.gap = '5px';
-
-    var btnGhost = makeBtn('Ghost: OFF', 'Redup otomatis saat mouse menjauh', '#1f2c34', '#aebac1');
-    btnGhost.addEventListener('click', function() {
-      ghostEnabled = !ghostEnabled;
-      btnGhost.textContent = ghostEnabled ? 'Ghost: ON' : 'Ghost: OFF';
-      btnGhost.style.background = ghostEnabled ? '#00a884' : '#1f2c34';
-      btnGhost.style.color = ghostEnabled ? '#0b141a' : '#aebac1';
-      btnGhost.style.fontWeight = ghostEnabled ? '700' : '400';
-      applyGhostState();
-    });
-
-    var btnPin = makeBtn('Pin', 'Always on Top', '#1f2c34', '#aebac1');
-    btnPin.addEventListener('click', function() {
-      isPinned = !isPinned;
-      btnPin.style.background = isPinned ? '#0284c7' : '#1f2c34';
-      btnPin.style.color = isPinned ? '#ffffff' : '#aebac1';
-      postIPC('toggle-pin');
-    });
-
-    var btnMini = makeBtn('Mini', 'Mode Mini Compact (430x660)', '#1f2c34', '#aebac1');
-    btnMini.addEventListener('click', function() {
-      isMini = !isMini;
-      btnMini.textContent = isMini ? 'Normal' : 'Mini';
-      btnMini.style.background = isMini ? '#00a884' : '#1f2c34';
-      btnMini.style.color = isMini ? '#0b141a' : '#aebac1';
-      postIPC('toggle-mini');
-    });
-
-    var btnBoss = makeBtn('Hide (Alt+Q)', 'Sembunyikan seketika (Alt+Q)', '#1f2c34', '#aebac1');
-    btnBoss.addEventListener('click', function() { postIPC('hide-window'); });
-
-    var btnMin = makeBtn('—', 'Minimize (atau tekan Esc)', '#1f2c34', '#d1d7db');
-    btnMin.addEventListener('click', function() { postIPC('minimize-window'); });
-
-    var btnMax = makeBtn('□', 'Maximize / Restore', '#1f2c34', '#d1d7db');
-    btnMax.addEventListener('click', function() { postIPC('maximize-window'); });
-
-    var btnClose = makeBtn('✕', 'Tutup Aplikasi', '#1f2c34', '#f87171');
-    btnClose.addEventListener('mouseenter', function() { btnClose.style.background = '#dc2626'; btnClose.style.color = '#ffffff'; });
-    btnClose.addEventListener('mouseleave', function() { btnClose.style.background = '#1f2c34'; btnClose.style.color = '#f87171'; });
-    btnClose.addEventListener('click', function() { postIPC('close-app'); });
-
-    right.appendChild(btnGhost);
-    right.appendChild(btnPin);
-    right.appendChild(btnMini);
-    right.appendChild(btnBoss);
-    right.appendChild(btnMin);
-    right.appendChild(btnMax);
-    right.appendChild(btnClose);
-
-    bar.appendChild(left);
-    bar.appendChild(right);
-
-    bar.addEventListener('mousedown', function(e) {
-      if (e.button === 0 && !e.target.closest('button')) {
-        postIPC('drag-window');
-      }
-    });
-    bar.addEventListener('dblclick', function(e) {
-      if (!e.target.closest('button')) {
-        postIPC('maximize-window');
-      }
-    });
-
-    root.appendChild(bar);
-    ensureLayoutPadding();
-  }
-
-  document.addEventListener('mouseenter', function() { cursorInside = true; applyGhostState(); }, true);
-  document.addEventListener('mouseleave', function() { cursorInside = false; applyGhostState(); }, true);
-  window.addEventListener('blur', function() { cursorInside = false; applyGhostState(); });
-  window.addEventListener('focus', function() { cursorInside = true; applyGhostState(); });
-
-  function bootstrap() {
-    injectBar();
-    ensureLayoutPadding();
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bootstrap);
-  } else {
-    bootstrap();
-  }
-
-  // WhatsApp SPA occasionally resets body styles during hydration
-  setInterval(bootstrap, 1200);
-})();
-"#;
+const STANDALONE_FALLBACK_HTML: &str = r#"<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<style>
+  html, body { height: 100%; margin: 0; background: #0a0b0e; color: #e4e6eb; font-family: "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; border: 1px solid #1b1e26; box-sizing: border-box; }
+  .bar { height: 28px; background: #07080b; border-bottom: 1px solid #1d2028; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; font-size: 11px; user-select: none; }
+  .btn { background: #14171f; border: 1px solid #222632; color: #c9cdd6; border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px; }
+  .primary { background: #5865f2; border-color: #5865f2; color: #fff; font-weight: 600; padding: 8px 12px; width: 100%; }
+  .wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px; gap: 10px; }
+  code { background: #161920; padding: 2px 5px; border-radius: 4px; color: #a3b3ff; font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="bar" onmousedown="if(event.button===0 && !event.target.closest('button')) window.ipc.postMessage('drag-window')">
+    <span># josjis-stealth</span>
+    <div style="display:flex;gap:4px;">
+      <button class="btn" onclick="window.ipc.postMessage('minimize-window')">—</button>
+      <button class="btn" onclick="window.ipc.postMessage('close-app')">✕</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <h3 style="margin:0;font-size:14px;">Mode UI Hitam (Discord Skin) butuh folder Josjis</h3>
+    <p style="margin:0;font-size:11.5px;color:#8e94a4;line-height:1.5;">
+      Letakkan <code>josjis-wa.exe</code> di folder <code>Josjis\dist\</code> lalu jalankan <code>start.bat</code> (atau pastikan <code>node index.js</code> aktif di port 3821) untuk memuat chat WhatsApp berwajah Discord hitam.
+    </p>
+    <button class="btn primary" onclick="window.location.replace('http://127.0.0.1:3821/')">↻ Coba Konek ke Engine Lokal (3821)</button>
+    <button class="btn" style="padding:8px 12px;width:100%;" onclick="window.location.replace('https://web.whatsapp.com')">Buka WhatsApp Web Saja</button>
+  </div>
+</body>
+</html>"#;
 
 fn main() {
-    let mut target_url = String::from("https://web.whatsapp.com");
     let args: Vec<String> = env::args().collect();
-    if args.len() > 1 && args[1].starts_with("http") {
-        target_url = args[1].clone();
+    let cli_url = if args.len() > 1 && args[1].starts_with("http") {
+        Some(args[1].clone())
+    } else {
+        None
+    };
+
+    let mut backend_child: Option<Child> = None;
+    let mut initial_url = cli_url;
+    let mut use_loading_html = false;
+
+    if initial_url.is_none() {
+        if is_port_open(3821) {
+            initial_url = Some(String::from("http://127.0.0.1:3821/"));
+        } else if let Some(repo_dir) = find_repo_dir() {
+            backend_child = spawn_local_backend(&repo_dir);
+            for _ in 0..18 {
+                if is_port_open(3821) {
+                    initial_url = Some(String::from("http://127.0.0.1:3821/"));
+                    break;
+                }
+                thread::sleep(Duration::from_millis(150));
+            }
+            if initial_url.is_none() {
+                use_loading_html = true;
+            }
+        }
     }
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
-    // True Borderless Frameless Window
+    // Compact corner widget (395x560, frameless, always on top)
+    let logical_w = 395.0_f64;
+    let logical_h = 560.0_f64;
     let window = WindowBuilder::new()
-        .with_title("Josjis Desktop")
-        .with_inner_size(LogicalSize::new(1020.0, 680.0))
+        .with_title("dev-workspace · Discord")
+        .with_inner_size(LogicalSize::new(logical_w, logical_h))
         .with_decorations(false)
         .with_resizable(true)
+        .with_always_on_top(true)
         .build(&event_loop)
         .expect("Failed to create native desktop window");
 
+    // Position neatly at the bottom-right corner above taskbar
     let hwnd = window.hwnd() as HWND;
     APP_HWND.store(hwnd as isize, Ordering::SeqCst);
 
-    // Persistent profile in %LOCALAPPDATA% so WhatsApp QR scan stays logged in forever
+    let scale = window.scale_factor();
+    let phys_w = (logical_w * scale).round() as i32;
+    let phys_h = (logical_h * scale).round() as i32;
+    let margin = (14.0 * scale).round() as i32;
+    let mut work_area = RECT::default();
+    let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut work_area, 0) };
+    if ok != 0 && work_area.right > phys_w && work_area.bottom > phys_h {
+        let x = (work_area.right - phys_w - margin).max(work_area.left);
+        let y = (work_area.bottom - phys_h - margin).max(work_area.top);
+        window.set_outer_position(PhysicalPosition::new(x, y));
+    }
+
+    // Persistent WebView2 profile
     let local_data = env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".to_string());
-    let data_dir = PathBuf::from(local_data).join("JosjisWhatsAppNativeProfile");
+    let data_dir = PathBuf::from(local_data).join("JosjisDiscordCornerProfile");
     let mut web_context = WebContext::new(Some(data_dir));
 
     let ipc_proxy = proxy.clone();
-    let webview = WebViewBuilder::new_with_web_context(&mut web_context)
-        .with_url(&target_url)
+    let mut builder = WebViewBuilder::new_with_web_context(&mut web_context)
         .with_devtools(false)
         .with_autoplay(true)
         .with_clipboard(true)
-        .with_initialization_script(STEALTH_INIT_SCRIPT)
         .with_permission_handler(|kind| match kind {
             PermissionKind::Microphone
             | PermissionKind::Camera
@@ -367,42 +371,46 @@ fn main() {
                 let _ = ipc_proxy.send_event(UserEvent::Close);
             } else if body.contains("drag-window") {
                 let _ = ipc_proxy.send_event(UserEvent::Drag);
-            } else if body.contains("toggle-mini") {
-                let _ = ipc_proxy.send_event(UserEvent::ToggleMini);
             } else if body.contains("toggle-pin") {
                 let _ = ipc_proxy.send_event(UserEvent::TogglePin);
+            } else if body.contains("set-ghost") {
+                parse_ghost_ipc(body);
             } else if body.contains("hide-window") {
                 toggle_boss_key();
-            } else if body.contains("\"navigate\"") {
-                if let Some(pos) = body.find("\"url\":\"") {
-                    let rest = &body[pos + 7..];
-                    if let Some(end) = rest.find('"') {
-                        let url = rest[..end].to_string();
-                        let _ = ipc_proxy.send_event(UserEvent::Navigate(url));
-                    }
-                }
             }
-        })
+        });
+
+    builder = if let Some(ref url) = initial_url {
+        builder.with_url(url)
+    } else if use_loading_html {
+        builder.with_html(LOADING_HTML)
+    } else {
+        builder.with_html(STANDALONE_FALLBACK_HTML)
+    };
+
+    let _webview = builder
         .build(&window)
         .expect("Failed to initialize embedded WebView2");
 
-    // Global Boss Key (Alt+Q) & Panic Key (Esc)
-    let hotkey_proxy = proxy.clone();
+    // Background Monitor: Boss Key (Alt+Q), Panic Key (Esc), & Real OS-Level 20% Transparency Ghost Mode
+    let monitor_proxy = proxy.clone();
     thread::spawn(move || {
         let mut boss_debounced = false;
+        let mut current_alpha: u8 = 255;
+        let mut outside_ticks: u32 = 0;
 
         while IS_RUNNING.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(60));
+            thread::sleep(Duration::from_millis(50));
 
             let hwnd = APP_HWND.load(Ordering::SeqCst) as HWND;
             if hwnd.is_null() {
                 continue;
             }
 
+            // 1. Global Boss Key (Alt + Q)
             unsafe {
                 let alt_pressed = (GetAsyncKeyState(VK_MENU) as i32 & 0x8000) != 0;
                 let q_pressed = (GetAsyncKeyState(VK_Q) as i32 & 0x8000) != 0;
-
                 if alt_pressed && q_pressed {
                     if !boss_debounced {
                         boss_debounced = true;
@@ -411,23 +419,70 @@ fn main() {
                 } else {
                     boss_debounced = false;
                 }
+            }
 
-                if !IS_HIDDEN.load(Ordering::SeqCst) {
-                    let esc = GetAsyncKeyState(VK_ESCAPE);
-                    if (esc as i32 & 0x8000) != 0 {
-                        let fg = GetForegroundWindow();
-                        if fg == hwnd {
-                            let _ = hotkey_proxy.send_event(UserEvent::Minimize);
-                            thread::sleep(Duration::from_millis(300));
-                        }
+            if IS_HIDDEN.load(Ordering::SeqCst) {
+                continue;
+            }
+
+            let is_minimized = unsafe { IsIconic(hwnd) != 0 };
+            if is_minimized {
+                continue;
+            }
+
+            // 2. Panic Minimize (Esc) when active
+            unsafe {
+                let esc = GetAsyncKeyState(VK_ESCAPE);
+                if (esc as i32 & 0x8000) != 0 && GetForegroundWindow() == hwnd {
+                    let _ = monitor_proxy.send_event(UserEvent::Minimize);
+                    thread::sleep(Duration::from_millis(300));
+                    continue;
+                }
+            }
+
+            // 3. Real OS-Level Ghost Opacity (default 20% = alpha 51 when cursor leaves)
+            if !GHOST_ENABLED.load(Ordering::SeqCst) {
+                outside_ticks = 0;
+                if current_alpha < 255 {
+                    current_alpha = 255;
+                    let _ = monitor_proxy.send_event(UserEvent::ApplyAlpha(255));
+                }
+                continue;
+            }
+
+            let mut pt = POINT::default();
+            let mut rect = RECT::default();
+            unsafe {
+                GetCursorPos(&mut pt);
+                GetWindowRect(hwnd, &mut rect);
+            }
+
+            let is_inside =
+                pt.x >= rect.left && pt.x <= rect.right && pt.y >= rect.top && pt.y <= rect.bottom;
+            let pct = GHOST_PERCENT.load(Ordering::SeqCst) as u16;
+            let target_alpha = ((pct * 255) / 100).clamp(25, 230) as u8;
+
+            if is_inside {
+                outside_ticks = 0;
+                if current_alpha < 255 {
+                    current_alpha = current_alpha.saturating_add(65);
+                    let _ = monitor_proxy.send_event(UserEvent::ApplyAlpha(current_alpha));
+                }
+            } else {
+                outside_ticks += 1;
+                if outside_ticks > 4 && current_alpha != target_alpha {
+                    if current_alpha > target_alpha {
+                        current_alpha = current_alpha.saturating_sub(32).max(target_alpha);
+                    } else {
+                        current_alpha = current_alpha.saturating_add(32).min(target_alpha);
                     }
+                    let _ = monitor_proxy.send_event(UserEvent::ApplyAlpha(current_alpha));
                 }
             }
         }
     });
 
-    let mut is_mini = false;
-    let mut is_pinned = false;
+    let mut is_pinned = true;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -439,30 +494,22 @@ fn main() {
             Event::UserEvent(UserEvent::Maximize) => {
                 window.set_maximized(!window.is_maximized());
             }
-            Event::UserEvent(UserEvent::ToggleMini) => {
-                is_mini = !is_mini;
-                if is_mini {
-                    window.set_inner_size(LogicalSize::new(430.0, 660.0));
-                    is_pinned = true;
-                    window.set_always_on_top(true);
-                } else {
-                    window.set_inner_size(LogicalSize::new(1020.0, 680.0));
-                    is_pinned = false;
-                    window.set_always_on_top(false);
-                }
-            }
             Event::UserEvent(UserEvent::TogglePin) => {
                 is_pinned = !is_pinned;
                 window.set_always_on_top(is_pinned);
             }
-            Event::UserEvent(UserEvent::Navigate(url)) => {
-                let _ = webview.load_url(&url);
+            Event::UserEvent(UserEvent::ApplyAlpha(alpha)) => {
+                apply_window_alpha(window.hwnd() as HWND, alpha);
             }
             Event::UserEvent(UserEvent::Drag) => {
                 let _ = window.drag_window();
             }
             Event::UserEvent(UserEvent::Close) => {
                 IS_RUNNING.store(false, Ordering::SeqCst);
+                if let Some(ref mut child) = backend_child {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
                 *control_flow = ControlFlow::Exit;
             }
             Event::WindowEvent {
@@ -470,6 +517,10 @@ fn main() {
                 ..
             } => {
                 IS_RUNNING.store(false, Ordering::SeqCst);
+                if let Some(ref mut child) = backend_child {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
                 *control_flow = ControlFlow::Exit;
             }
             _ => (),

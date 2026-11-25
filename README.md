@@ -1,40 +1,31 @@
-# Josjis Desktop - Stealth Multi-Chat Workspace (WhatsApp Native)
+# Josjis Desktop - Black Discord-Style WhatsApp Corner Widget & CLI
 
-Aplikasi percakapan desktop **100% Native Windows Borderless (`dist/josjis-wa.exe`)** berbasis Rust (`tao` + `wry` WebView2), super ringan (~600 KB), tanpa border Windows, tanpa instalasi, dan mendukung **Ghost Mode**, **Boss Key (`Alt + Q`)**, serta **Panic Key (`Esc`)**.
-
----
-
-## ⚡ Fitur Utama (`josjis-wa.exe`)
-
-1. **True Borderless / Frameless Window (Tanpa Bingkai Windows):**
-   - Menghilangkan total border & titlebar putih bawaan Windows OS (`with_decorations: false`).
-   - Dilengkapi top bar stealth ramping (30px, warna dark `#111b21`) yang bisa di-drag untuk memindahkan jendela.
-2. **Bebas Loop QR & 100% Sinkronisasi WhatsApp:**
-   - Menggunakan engine WebView2 resmi dengan profil persisten di `%LOCALAPPDATA%\JosjisWhatsAppNativeProfile`.
-   - Cukup scan QR WhatsApp **1 kali** di dalam aplikasi — seluruh chat lama, grup, nama kontak, foto, dokumen, dan voice note tersinkronisasi penuh dan tidak pernah loop/logout sendiri.
-3. **Kontrol Stealth Lengkap di Bar Atas:**
-   - **Switch Platform**: Klik **`WA`**, **`DC`**, atau **`TikTok`** langsung di header atas.
-   - **`Ghost: ON/OFF`**: Otomatis meredup (14% opacity) saat kursor keluar dari jendela dan kembali 100% saat disentuh.
-   - **`Pin`**: Mengunci jendela selalu di atas (*Always on Top*).
-   - **`Mini`**: Mengecilkan jendela ke ukuran compact melayang (`430x660`).
-   - **`Hide (Alt+Q)`** / Boss Key **`Alt + Q`**: Menyembunyikan jendela seketika dari layar & taskbar.
-   - **Panic Key `Esc`**: Langsung minimize jendela saat aplikasi aktif.
+Client WhatsApp stealth super ringan (**~600 KB**) dengan tampilan **hitam minimalis ala Discord**, posisi otomatis **kecil di pojok kanan bawah layar**, **Ghost Mode transparan asli 20% (tembus pandang ke jendela di belakangnya)**, dan dukungan penuh **CLI terminal mode**.
 
 ---
 
-## 🚀 Cara Menjalankan di Windows
+## ⚡ Fitur Utama (`dist/josjis-wa.exe`)
 
-### Opsi A (Langsung Pakai — Download .exe)
-Download [`dist/josjis-wa.exe`](dist/josjis-wa.exe) lalu double-click langsung di Windows.
-
-### Opsi B (Dari Folder Repo Git)
-```bat
-git pull origin main
-start.bat
-```
+1. **Tampilan Hitam Minimalis ala Discord (Chat dari WhatsApp)**:
+   - Sidebar kontak kompak (`# kontak`, `& grup`), filter `All / DM / Grp`, pencarian cepat, kirim ke nomor baru (`+ Nomor`), serta format pesan datar ala Discord (bukan bubble hijau WhatsApp).
+   - **Scan QR Langsung di Dalam Jendela**: Jika belum tertaut, QR muncul otomatis di jendela hitam tanpa perlu membuka terminal terpisah.
+2. **Kecil di Pojok Layar (`395x560`) & Borderless**:
+   - Otomatis muncul di pojok kanan bawah di atas taskbar, *Always on Top* (`Pin`), tanpa bingkai putih bawaan Windows.
+3. **Ghost Mode Transparansi Asli OS (`20%` Opacity)**:
+   - Menggunakan Win32 Layered Alpha (*bukan sekadar redup hitam*): jendela menjadi **20% tembus pandang** saat kursor menjauh, dan kembali `100%` terang & responsif saat kursor menyentuh jendela. Level opacity bisa diganti (`20% / 35% / 50% / 12%`).
+4. **Hotkey & Samaran**:
+   - **`Alt + Q`**: Boss Key (sembunyikan seketika dari layar & taskbar).
+   - **`Esc`**: Panic Key (minimize ke taskbar).
+   - **`F1`** / tombol **`Code`**: Overlay samaran editor VS Code (`metrics-worker.ts`).
 
 ---
 
-## 🛠️ Catatan Perbaikan Mode Terminal / Baileys (`auth-wa.js`)
-Jika masih menggunakan mode Node/Baileys (`auth.bat` / `reauth.bat`):
-- Memperbaiki bug loop QR / reconnect berulang (penanganan kode `515 restartRequired`, pencegahan socket ganda & orphan listeners, blokir loop saat bentrok sesi `440`, serta menunggu penyimpanan penuh `creds.json` & kunci LID sebelum keluar).
+## 🚀 Cara Pakai di Windows (`D:\Porto Project\Josjis2\Josjis`)
+
+1. Update ke versi terbaru:
+   ```bat
+   git pull origin main
+   ```
+2. Pilih mode yang diinginkan:
+   - **Mode Corner Widget Hitam ala Discord** → jalankan **`start.bat`** (atau langsung klik `dist\josjis-wa.exe`).
+   - **Mode Terminal CLI Murni** → jalankan **`cli.bat`** (atau `npm run cli`).
