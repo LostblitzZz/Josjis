@@ -131,6 +131,8 @@ class WhatsAppAdapter extends EventEmitter {
     this.messagesFile = path.join(this.authDir, 'messages_store.json');
     this.sock = null;
     this.isConnected = false;
+    this.isStarting = false;
+    this.reconnectTimer = null;
     this.contacts = new Map(); // jid -> { jid, name, lastMessage, timestamp, isGroup }
     this.messages = new Map(); // jid -> [ array of messages ]
     this.saveTimer = null;
@@ -262,17 +264,36 @@ class WhatsAppAdapter extends EventEmitter {
     return this.messages.get(jid) || [];
   }
 
+  cleanupSocket() {
+    if (this.sock) {
+      try { this.sock.ev.removeAllListeners(); } catch {}
+      try { this.sock.end(); } catch {}
+      this.sock = null;
+    }
+  }
+
+  scheduleReconnect(delayMs) {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.start();
+    }, delayMs);
+  }
+
   async start() {
+    if (this.isStarting) return;
+    this.isStarting = true;
     try {
-      if (this.sock) {
-        try { this.sock.end(); } catch {}
-        this.sock = null;
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
       }
+      this.cleanupSocket();
 
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
       const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1043857760] }));
 
-      this.sock = makeWASocket({
+      const sock = makeWASocket({
         version,
         auth: state,
         logger: pino({ level: 'silent' }),
@@ -280,10 +301,12 @@ class WhatsAppAdapter extends EventEmitter {
         browser: Browsers.windows('Chrome'),
         syncFullHistory: true
       });
+      this.sock = sock;
 
-      this.sock.ev.on('creds.update', saveCreds);
+      sock.ev.on('creds.update', saveCreds);
 
-      this.sock.ev.on('connection.update', (update) => {
+      sock.ev.on('connection.update', (update) => {
+        if (sock !== this.sock) return;
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -292,16 +315,21 @@ class WhatsAppAdapter extends EventEmitter {
 
         if (connection === 'close') {
           this.isConnected = false;
+          this.cleanupSocket();
           const statusCode = lastDisconnect?.error?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === DisconnectReason.badSession;
+          const isReplaced = statusCode === DisconnectReason.connectionReplaced;
+          const shouldReconnect = !isLoggedOut && !isReplaced;
+
           this.emit('status', {
-            status: 'disconnected',
+            status: isReplaced ? 'conflict' : 'disconnected',
             reconnecting: shouldReconnect,
             reason: statusCode
           });
 
           if (shouldReconnect) {
-            setTimeout(() => this.start(), 3000);
+            const delay = statusCode === DisconnectReason.restartRequired ? 800 : 3000;
+            this.scheduleReconnect(delay);
           }
         } else if (connection === 'open') {
           this.isConnected = true;
@@ -531,6 +559,8 @@ class WhatsAppAdapter extends EventEmitter {
 
     } catch (err) {
       this.emit('error', err);
+    } finally {
+      this.isStarting = false;
     }
   }
 

@@ -1,42 +1,40 @@
-# Josjis Desktop - Stealth Multi-Chat Workspace
+# Josjis Desktop - Stealth Multi-Chat Workspace (WhatsApp Native)
 
-Aplikasi percakapan desktop **100% Native Windows (`Josjis.exe`)** yang ringan, compact, dan dilengkapi dengan **Auto-Dimming Ghost Mode (OS-Level Transparency)** serta **100% Akses Seluruh Riwayat Chat & Kontak**.
+Aplikasi percakapan desktop **100% Native Windows Borderless (`dist/josjis-wa.exe`)** berbasis Rust (`tao` + `wry` WebView2), super ringan (~600 KB), tanpa border Windows, tanpa instalasi, dan mendukung **Ghost Mode**, **Boss Key (`Alt + Q`)**, serta **Panic Key (`Esc`)**.
 
 ---
 
-## ⚡ Fitur Utama
+## ⚡ Fitur Utama (`josjis-wa.exe`)
 
-1. **100% Seluruh Chat & Kontak Lengkap:**  
-   Menggunakan engine web resmi dalam mode aplikasi mandiri (*Borderleess App Window*). Seluruh riwayat chat lama bertahun-tahun, kontak dengan nama dari buku telepon ponsel, media, foto, dan voice note tersinkronisasi 100%.
-2. **Stealth Auto-Dimming (Ghost Mode Tingkat OS):**  
-   Saat kursor mouse keluar dari jendela chat, jendela otomatis memudar halus menjadi transparan (default **20% opacity**). Saat mouse menyentuh jendela, seketika kembali terang (100%).
-3. **Pilihan Platform di Awal (Dashboard Menu):**  
-   * **[WhatsApp Desktop]**: Chat pribadi, grup, voice note, dan media lengkap.
-   * **[Discord Web]**: Server channels dan direct messages.
-   * **[TikTok DM]**: Direct messages dan percakapan TikTok.
-4. **Panic Minimize (`Esc`):**  
-   Tekan tombol **`Esc`** kapan saja saat jendela chat aktif untuk langsung menyembunyikannya ke taskbar seketika.
-5. **Ukuran Compact & Resizable:**  
-   Ukuran jendela ramping (440x680), bisa digeser ke sudut monitor, dan mendukung Always on Top.
-6. **0 MB Install / Tanpa Node Server:**  
-   Dikompilasi langsung menjadi file `.exe` mandiri menggunakan compiler bawaan Windows (`csc.exe`).
+1. **True Borderless / Frameless Window (Tanpa Bingkai Windows):**
+   - Menghilangkan total border & titlebar putih bawaan Windows OS (`with_decorations: false`).
+   - Dilengkapi top bar stealth ramping (30px, warna dark `#111b21`) yang bisa di-drag untuk memindahkan jendela.
+2. **Bebas Loop QR & 100% Sinkronisasi WhatsApp:**
+   - Menggunakan engine WebView2 resmi dengan profil persisten di `%LOCALAPPDATA%\JosjisWhatsAppNativeProfile`.
+   - Cukup scan QR WhatsApp **1 kali** di dalam aplikasi — seluruh chat lama, grup, nama kontak, foto, dokumen, dan voice note tersinkronisasi penuh dan tidak pernah loop/logout sendiri.
+3. **Kontrol Stealth Lengkap di Bar Atas:**
+   - **Switch Platform**: Klik **`WA`**, **`DC`**, atau **`TikTok`** langsung di header atas.
+   - **`Ghost: ON/OFF`**: Otomatis meredup (14% opacity) saat kursor keluar dari jendela dan kembali 100% saat disentuh.
+   - **`Pin`**: Mengunci jendela selalu di atas (*Always on Top*).
+   - **`Mini`**: Mengecilkan jendela ke ukuran compact melayang (`430x660`).
+   - **`Hide (Alt+Q)`** / Boss Key **`Alt + Q`**: Menyembunyikan jendela seketika dari layar & taskbar.
+   - **Panic Key `Esc`**: Langsung minimize jendela saat aplikasi aktif.
 
 ---
 
 ## 🚀 Cara Menjalankan di Windows
 
-Cukup buka terminal di folder proyek (`D:\Porto Project\Josjis2\Josjis`):
+### Opsi A (Langsung Pakai — Download .exe)
+Download [`dist/josjis-wa.exe`](dist/josjis-wa.exe) lalu double-click langsung di Windows.
 
+### Opsi B (Dari Folder Repo Git)
 ```bat
-git checkout . && git pull origin main
-```
-
-Lalu jalankan:
-```bat
+git pull origin main
 start.bat
 ```
 
-1. Jendela **Josjis Desktop Hub** akan terbuka.
-2. Klik tombol **`🚀 Buka WhatsApp`** (atau Discord / TikTok).
-3. Login WhatsApp sekali lewat scan QR di jendela tersebut (sesi tersimpan permanen di profil lokal).
-4. Selesai! Semua chatmu ada lengkap dan auto-opacity stealth langsung aktif.
+---
+
+## 🛠️ Catatan Perbaikan Mode Terminal / Baileys (`auth-wa.js`)
+Jika masih menggunakan mode Node/Baileys (`auth.bat` / `reauth.bat`):
+- Memperbaiki bug loop QR / reconnect berulang (penanganan kode `515 restartRequired`, pencegahan socket ganda & orphan listeners, blokir loop saat bentrok sesi `440`, serta menunggu penyimpanan penuh `creds.json` & kunci LID sebelum keluar).

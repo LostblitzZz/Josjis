@@ -3,8 +3,14 @@ title Josjis Desktop Launcher
 cd /d "%~dp0"
 
 echo ====================================================================
-echo               Josjis Stealth Workspace - Native Desktop
+echo         Josjis Stealth Workspace - Native Borderless Desktop
 echo ====================================================================
+
+if exist "dist\josjis-wa.exe" (
+    echo [LAUNCH] Membuka Josjis WhatsApp Stealth ^(Native Rust Borderless^)...
+    start "" "dist\josjis-wa.exe"
+    exit /b 0
+)
 
 set CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 if not exist "%CSC%" (
@@ -12,8 +18,7 @@ if not exist "%CSC%" (
 )
 
 if not exist "%CSC%" (
-    echo [ERROR] Compiler C# (csc.exe) tidak ditemukan di C:\Windows\Microsoft.NET!
-    echo Pastikan .NET Framework terinstal di Windows Anda.
+    echo [ERROR] dist\josjis-wa.exe maupun csc.exe tidak ditemukan!
     pause
     exit /b 1
 )
